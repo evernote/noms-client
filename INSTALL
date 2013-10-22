@@ -1,0 +1,5 @@
+Installation Instructions (basic)
+
+* Copy lib/*.rb to a Ruby library location (preserving relative path)
+* Copy lib/*.pm to a Perl library location (preserving relative path)
+* Copy prism to a binary location

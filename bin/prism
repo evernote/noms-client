@@ -1,0 +1,433 @@
+#!/usr/bin/env ruby
+# /* Copyright 2013 Proofpoint, Inc. All rights reserved.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# */
+
+
+$LOAD_PATH.unshift('/opt/pptools')
+require 'ppenv'
+require 'optconfig'
+require 'pcm/client'
+require 'ppinventory'
+require 'prism/cmdb'
+
+$opt = Optconfig.new('prism', {
+                         'pcm-api=s%' => {
+                             'url' =>
+                             'http://prism.proofpoint.com/pcm_api/v2' },
+                         'inventory=s%' => {
+                             'url' => 'http://prism.proofpoint.com/inv_api/v1',
+                             'username' => 'readonly',
+                             'password' => 'readonly' },
+                         'format=s' => 'text',
+                         'label!' => true,
+                         'header!' => true,
+                         'feedback!' => true,
+                         'waitfor-interval=i' => 5,
+                         'timeout=i' => 600,
+                         'format-field=s%' => {
+                             'instance' => {
+                                 'fields' => [
+                                     'name', 'status', 'size', 'image',
+                                     'id'],
+                                 'length' => {
+                                     'name' => 22,
+                                     'status' => 10,
+                                     'size' => 10,
+                                     'id' => 36,
+                                     'image' => 15
+                                 }
+                             },
+                             'system' => {
+                                 'fields' => [
+                                     'fqdn', 'status', 'ip_address',
+                                     'data_center_code', 'svc_id',
+                                     'cloud', 'serial_number'],
+                                 'length' => {
+                                     'fqdn' => 22,
+                                     'status' => 10,
+                                     'ip_address' => 15,
+                                     'data_center_code' => 0,
+                                     'svc_id' => 10,
+                                     'cloud' => 10,
+                                     'serial_number' => 36
+                                 }
+                             }
+                         }
+                     })
+
+$cmdb = PPInventory.new($opt)
+$svc_cmdb = PRISM::CMDB.new($opt)
+$pcmapi = PCM::Client.new($opt)
+
+def fmt_string(type='instance', fields=nil)
+    fields = fmt_fields(type, fields)
+    fields.map do |field|
+        len = $opt['format-field'][type]['length'][field]
+        len = field.length unless (len and len > 0)
+        "%-#{len}.#{len}s"
+    end.join(" ")
+end
+
+def fmt_fields(type='instance', fields=nil)
+    if fields.nil?
+        fields = $opt['format-field'][type]['fields']
+    end
+    fields
+end
+
+def fmt_line(obj, type='instance', fields=nil)
+    fields = fmt_fields(type, fields)
+    fmt_string(type, fields) % fields.map { |f| obj[f] }
+end
+
+def fmt_header(type='instance', fields=nil)
+    fields = fmt_fields(type, fields)
+    fmt_string(type, fields) % fields
+end
+
+def formatted_output(objects, type='instance', fields=nil)
+    puts fmt_header(type, fields) if $opt['header']
+    results = objects.map do |obj|
+        fmt_line(obj, type, fields)
+    end.join("\n")
+    results += "\n#{objects.length} objects" if $opt['feedback']
+end
+
+def record_formatted_output(object, type='instance', fields=nil)
+    fields = fmt_fields(type, fields)
+    all_fields = object.keys
+    fields = fields & all_fields
+    fieldlist = fields + (all_fields - fields)
+    fieldlist.map { |f|
+        $opt['label'] ? "#{f}: #{object[f]}" : object[f]
+    }.join("\n")
+end
+
+def extractkvs(args)
+    args.inject([{}, []]) do |a, arg|
+        if /^(\w+)=/.match arg
+            key, value = arg.split('=')
+            [a[0].merge({ key.to_sym => value }), a[1]]
+        else
+            [a[0], a[1] << arg]
+        end
+    end
+end
+
+def parsekvs(args)
+   args.inject({}) do |h, arg|
+      key, value = arg.split('=')
+      h.merge({ key.to_sym => value })
+   end
+end
+
+def get_username
+    Etc.getpwuid(Process.uid).name
+end
+
+def fatal(msg)
+   $stderr.puts "prism error: #{msg}"
+   Process.exit(1)
+end
+
+def dbg(msg)
+   if $opt.has_key? 'debug' and $opt['debug'] > 0
+       puts "DBG(prism): #{msg}"
+   end
+end
+
+def hash_from_array(a, field='id')
+    Hash[a.map { |e| [e[field], e] }]
+end
+
+def generic_describe(h)
+    h.map do |k, v|
+        "#{k}: #{v}"
+    end.join("\n")
+end
+
+def desc(args)
+   what = args.shift
+   case what
+   when 'commands'
+       generic_describe({
+                            'commands' => 'list commands',
+                            'cmdb' => 'interact with CMDB (Inventory)',
+                            'instance' => 'interact with clouds (PCM-API)',
+                            'waitfor' => 'wait for CMDB query to be satisfied'
+                        })
+   when 'clouds'
+       generic_describe Hash[$pcmapi.clouds.map { |e| [e['name'],
+                                     e['provider']] }]
+   else
+       $stderr.puts "Can't describe '#{what}'"
+   end
+end
+
+def cmdb_query(args)
+    $cmdb.query('system', args)
+end
+
+def cmdb_show(args)
+    fqdn = args.shift
+    system = $cmdb.query('system', 'fqdn=' + fqdn).first
+    record = if ! args.empty?
+                 system.keys.inject({}) do |h, k|
+            if args.include? k
+                h.merge({k => system[k]})
+            else
+                h
+            end
+        end
+             else
+                 system
+             end
+    record
+end
+
+def cmdb(args)
+    cmd = args.shift
+    opt, argv = extractkvs args
+    case cmd
+    when 'query'
+        # Note, args, not argv
+        results = cmdb_query args
+        formatted_output(results, 'system')
+    when 'show','info'
+        record = cmdb_show args
+        record_formatted_output(record, 'system')
+    when 'set'
+        fqdn = args.shift
+        updated = $cmdb.update('system', opt, fqdn)
+        ''
+    else
+        $stderr.puts "Unknown cmdb command '#{cmd}'"
+        Process.exit(2)
+    end
+end
+
+def eval_conditions(count, results)
+    expr =
+        case count
+        when "0", 0
+            lambda { |r| r.nil? or r.length == 0 }
+        when /^>/
+            m = /^>(\d+)/.match count
+            ct = m[1].to_i
+            lambda { |r| !r.nil? and r.length > ct }
+        else
+            ct = count.to_i
+            lambda { |r| !r.nil? and r.length == ct }
+        end
+
+    expr.call results
+end
+
+def waitfor(args)
+    count = args.shift
+    commands = ['cmdb']
+    conditions = []
+
+    command = args.shift
+    subcommand = args.shift
+    continuing = true
+
+    startts = Time.now
+    while continuing
+        results = case command
+                  when 'cmdb'
+                      case subcommand
+                      when 'query'
+                          cmdb_query args
+                      else
+                          fatal "Can only wait for cmdb query or show"
+                      end
+                  else
+                      fatal "Can only wait for cmdb"
+                  end
+        if eval_conditions(count, results)
+            dbg "Conditions satisfied (#{count} records)"
+            Process.exit(0)
+            continuing = false
+        else
+            dbg "Conditions not satisfied"
+            if (Time.now - startts) > $opt['timeout']
+                $stderr.puts "Timed out waiting for #{count} records of " +
+                    "#{command} #{subcommand} #{args}"
+                Process.exit(4)
+            end
+            dbg "Waiting #{$opt['waitfor-interval']}"
+            sleep $opt['waitfor-interval']
+        end
+    end
+end
+
+def env(args)
+    command = args.shift
+    case command
+    when 'list'
+        $svc_cmdb.environments
+    when 'show', 'info'
+        env_name = args.shift
+        $svc_cmdb.environment env_name
+    else
+        $stderr.puts "Unknown env command '#{command}'"
+        Process.exit(2)
+    end
+end
+
+def outs(output)
+    puts output if (output and ! output.empty?)
+end
+
+def dispatch_command(argv)
+    command = argv.shift
+    case command
+    when 'help'
+        $stderr.puts "Use prism --help"
+        Process.exit(1)
+    when 'describe', 'desc'
+        outs desc argv
+    when 'cmdb', 'inv'
+        outs cmdb argv
+    when 'environment', 'env'
+        outs env argv
+    when 'instance'
+        outs instance argv
+    when 'waitfor'
+        waitfor argv
+    when nil
+        $stderr.puts "Usage:\n   prism --help\n   prism {desc|cmdb|instance|waitfor} [arg]"
+        Process.exit(1)
+    else
+        $stderr.puts "Unknown command '#{command}'"
+        Process.exit(1)
+    end
+end
+
+
+def instance(args)
+    cmd = args.shift
+    case cmd
+    when 'list'
+        results = $pcmapi.list args
+        formatted_output(results, 'instance')
+    when 'info', 'show'
+        cloud = args.shift
+        id = args.shift
+        record_formatted_output $pcmapi.instance cloud, id
+    when 'add'
+        attrs = { :username => get_username, :size => 'm1.small' }
+        attrs.update(args.empty? ? { } : parsekvs(args))
+        dbg attrs.inspect
+      inst = $client.add(attrs)
+      fmt_instance(inst) unless inst.nil?
+   when 'remove'
+      name = args.shift
+      fatal("No name to remove") if name.nil?
+      attrs = { }
+      if /=/.match(name)
+          attrs = parsekvs(args.unshift(name))
+      elsif /\./.match(name)
+          attrs = { :hostname => name }
+      elsif /-/.match(name)
+          attrs = { :id => name }
+      end
+      dbg attrs.inspect
+      $client.delete(attrs)
+   else
+      $stderr.puts "Unknown box command #{cmd}"
+        Process.exit(3)
+   end
+end
+
+dispatch_command ARGV
+
+$manpage = <<'EOF'
+=head1 NAME
+
+prism - CLI for PRoofpoint Infrastructure Service Management
+
+=head1 SYNOPSIS
+
+   prism command [options] [arguments]
+      cmdb [subcommand]
+         query [condition [...]] - Query for systems
+      instance [subcommand] - Operate on PRISM instances
+         add [attribute=value [...]] - Add a new PRISM instance
+         list [cloud] - List PRISM instances (in cloud)
+         remove { name | attribute=value } [attribute=value [...]] - Remove
+            a PRISM instance
+      options as described in Optconfig
+
+=head1 DESCRIPTION
+
+The C<prism> command is used to set up virtual environments at Proofpoint. The
+interface is inspired by the C<vagrant> (L<http://vagrantup.com>)package used
+for setting up VirtualBox environments for software development.
+
+=head2 Commands
+
+=over 4
+
+=item describe
+
+The C<describe> command (C<desc> is a synonym) is used to describe different
+things about the PRISM environment.
+
+=over 8
+
+=item commands
+
+List the different commands available
+
+=back
+
+=over 4
+
+=item instance
+
+The C<instance> command is used for operating on individual instances in the
+PRISM environment. Use it by invoking subcommands to add, remove and list
+instances.
+
+=over 8
+
+=item add
+
+Add a new instance. Optional attributes/values can be added as key-value pairs
+separated by an equals sign (C<=>).
+
+=item list
+
+List instances. Use the B<--verbose> option to list more fields
+
+=item remove
+
+Remove an instance. B<Warning:> This cannot be canceled or undone. Use the
+B<--dry-run> option to see the id of the box that will be deleted.
+
+=back
+
+=head1 EXAMPLES
+
+   prism instance list
+
+=head1 AUTHOR
+
+Jeremy Brinkley, E<lt>jbrinkley@proofpoint.comE<gt>
+
+=cut
+EOF
