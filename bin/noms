@@ -14,9 +14,7 @@
 # limitations under the License.
 # */
 
-
-$LOAD_PATH.unshift('/opt/pptools')
-require 'ppenv'
+$LOAD_PATH.unshift "/usr/local/lib"
 require 'optconfig'
 require 'pcm/client'
 require 'ppinventory'
