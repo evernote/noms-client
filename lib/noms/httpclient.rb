@@ -1,12 +1,13 @@
 #!ruby
-# /* Copyright 2013 Proofpoint, Inc. All rights reserved.
-# 
+# /* Copyright 2014 Evernote Corporation. All rights reserved.
+#    Copyright 2013 Proofpoint, Inc. All rights reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,11 +21,11 @@ require 'rubygems'
 require 'rexml/document'
 require 'json'
 
-class PRISM
+class NOMS
 
 end
 
-class PRISM::XmlHash < Hash
+class NOMS::XmlHash < Hash
 
     attr_accessor :element, :name
 
@@ -38,7 +39,7 @@ class PRISM::XmlHash < Hash
         end
         self['children'] = []
         el.elements.each do |child|
-           self['children'] << PRISM::XmlHash.new(child)
+           self['children'] << NOMS::XmlHash.new(child)
         end
     end
 
@@ -59,7 +60,7 @@ class PRISM::XmlHash < Hash
 
 end
 
-class PRISM::HttpClient
+class NOMS::HttpClient
 
     def config_key
         'httpclient'
@@ -191,7 +192,7 @@ class PRISM::HttpClient
     end
 
     def _xml_to_hash(rexml)
-        PRISM::XmlHash.new rexml.root
+        NOMS::XmlHash.new rexml.root
     end
 
     def error_body(body_text, content_type=nil)

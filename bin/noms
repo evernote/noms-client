@@ -1,12 +1,12 @@
 #!/usr/bin/env ruby
-# /* Copyright 2013 Proofpoint, Inc. All rights reserved.
-# 
+# /* Copyright 2014 Evernote Corporation. All rights reserved.
+#    Copyright 2013 Proofpoint, Inc. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,14 +20,14 @@ require 'ppenv'
 require 'optconfig'
 require 'pcm/client'
 require 'ppinventory'
-require 'prism/cmdb'
+require 'noms/cmdb'
 
-$opt = Optconfig.new('prism', {
+$opt = Optconfig.new('noms', {
                          'pcm-api=s%' => {
                              'url' =>
-                             'http://prism.proofpoint.com/pcm_api/v2' },
+                             'http://noms.ops-lab.net/pcm_api/v2' },
                          'inventory=s%' => {
-                             'url' => 'http://prism.proofpoint.com/inv_api/v1',
+                             'url' => 'http://noms.ops-lab.net/inv_api/v1',
                              'username' => 'readonly',
                              'password' => 'readonly' },
                          'format=s' => 'text',
@@ -68,7 +68,7 @@ $opt = Optconfig.new('prism', {
                      })
 
 $cmdb = PPInventory.new($opt)
-$svc_cmdb = PRISM::CMDB.new($opt)
+$svc_cmdb = NOMS::CMDB.new($opt)
 $pcmapi = PCM::Client.new($opt)
 
 def fmt_string(type='instance', fields=nil)
@@ -138,13 +138,13 @@ def get_username
 end
 
 def fatal(msg)
-   $stderr.puts "prism error: #{msg}"
+   $stderr.puts "noms error: #{msg}"
    Process.exit(1)
 end
 
 def dbg(msg)
    if $opt.has_key? 'debug' and $opt['debug'] > 0
-       puts "DBG(prism): #{msg}"
+       puts "DBG(noms): #{msg}"
    end
 end
 
@@ -296,7 +296,7 @@ def dispatch_command(argv)
     command = argv.shift
     case command
     when 'help'
-        $stderr.puts "Use prism --help"
+        $stderr.puts "Use noms --help"
         Process.exit(1)
     when 'describe', 'desc'
         outs desc argv
@@ -309,7 +309,7 @@ def dispatch_command(argv)
     when 'waitfor'
         waitfor argv
     when nil
-        $stderr.puts "Usage:\n   prism --help\n   prism {desc|cmdb|instance|waitfor} [arg]"
+        $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor} [arg]"
         Process.exit(1)
     else
         $stderr.puts "Unknown command '#{command}'"
@@ -358,24 +358,24 @@ dispatch_command ARGV
 $manpage = <<'EOF'
 =head1 NAME
 
-prism - CLI for PRoofpoint Infrastructure Service Management
+noms - CLI for New Operations Management Stack
 
 =head1 SYNOPSIS
 
-   prism command [options] [arguments]
+   noms command [options] [arguments]
       cmdb [subcommand]
          query [condition [...]] - Query for systems
-      instance [subcommand] - Operate on PRISM instances
-         add [attribute=value [...]] - Add a new PRISM instance
-         list [cloud] - List PRISM instances (in cloud)
+      instance [subcommand] - Operate on NOMS instances
+         add [attribute=value [...]] - Add a new NOMS instance
+         list [cloud] - List NOMS instances (in cloud)
          remove { name | attribute=value } [attribute=value [...]] - Remove
-            a PRISM instance
+            a NOMS instance
       options as described in Optconfig
 
 =head1 DESCRIPTION
 
-The C<prism> command is used to set up virtual environments at Proofpoint. The
-interface is inspired by the C<vagrant> (L<http://vagrantup.com>)package used
+The C<noms> command is used to set up and manage virtual and physical environments. The
+interface is inspired by the C<vagrant> (L<http://vagrantup.com>) package used
 for setting up VirtualBox environments for software development.
 
 =head2 Commands
@@ -385,7 +385,7 @@ for setting up VirtualBox environments for software development.
 =item describe
 
 The C<describe> command (C<desc> is a synonym) is used to describe different
-things about the PRISM environment.
+things about the NOMS environment.
 
 =over 8
 
@@ -400,7 +400,7 @@ List the different commands available
 =item instance
 
 The C<instance> command is used for operating on individual instances in the
-PRISM environment. Use it by invoking subcommands to add, remove and list
+NOMS environment. Use it by invoking subcommands to add, remove and list
 instances.
 
 =over 8
@@ -423,11 +423,11 @@ B<--dry-run> option to see the id of the box that will be deleted.
 
 =head1 EXAMPLES
 
-   prism instance list
+   noms instance list
 
 =head1 AUTHOR
 
-Jeremy Brinkley, E<lt>jbrinkley@proofpoint.comE<gt>
+Jeremy Brinkley, E<lt>jbrinkley@evernote.comE<gt>
 
 =cut
 EOF

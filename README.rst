@@ -1,4 +1,12 @@
-prism-client
-============
+noms-client
+===========
 
-Client libraries for PRISM components
+Client libraries for NOMS components:
+
+* cmdb
+* pcm-api v2
+
+Planned:
+
+* nagios/nagcheck
+* config management/orchestration

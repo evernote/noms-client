@@ -1,6 +1,7 @@
 #!ruby
-# /* Copyright 2013 Proofpoint, Inc. All rights reserved.
-# 
+# /* Copyright 2014 Evernote Corporation. All rights reserved.
+#    Copyright 2013 Proofpoint, Inc. All rights reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,13 +16,13 @@
 # */
 
 
-require 'prism/httpclient'
+require 'noms/httpclient'
 
 class PCM
 
 end
 
-class PCM::Client < PRISM::HttpClient
+class PCM::Client < NOMS::HttpClient
 
     def config_key
         'pcm-api'
