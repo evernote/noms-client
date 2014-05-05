@@ -1,0 +1,20 @@
+#!/usr/bin/env rspec
+
+require 'ppinventory'
+
+$opt = { "cmdb" => { "url" => "http://cmdb/cmdb_api/v1" } }
+
+describe PPInventory do
+
+    describe "#new" do
+
+        it "creates a new CMDB client object" do
+
+            obj = PPInventory.new($opt)
+            obj.should be_a PPInventory
+
+        end
+
+    end
+
+end
