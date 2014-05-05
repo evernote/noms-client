@@ -17,17 +17,15 @@
 $LOAD_PATH.unshift "/usr/local/lib"
 require 'optconfig'
 require 'pcm/client'
-require 'ppinventory'
 require 'noms/cmdb'
 
 $opt = Optconfig.new('noms', {
                          'pcm-api=s%' => {
                              'url' =>
                              'http://noms.ops-lab.net/pcm_api/v2' },
-                         'inventory=s%' => {
-                             'url' => 'http://noms.ops-lab.net/inv_api/v1',
-                             'username' => 'readonly',
-                             'password' => 'readonly' },
+                         'cmdb=s%' => {
+                             'url' => 'http://noms.ops-lab.net/inv_api/v1' },
+                         'fields=s' => '',
                          'format=s' => 'text',
                          'label!' => true,
                          'header!' => true,
@@ -50,24 +48,47 @@ $opt = Optconfig.new('noms', {
                              'system' => {
                                  'fields' => [
                                      'fqdn', 'status', 'ip_address',
-                                     'data_center_code', 'svc_id',
-                                     'cloud', 'serial_number'],
+                                     'data_center_code', 'environment',
+                                     'serial_number'],
                                  'length' => {
-                                     'fqdn' => 22,
+                                     'fqdn' => 29,
                                      'status' => 10,
                                      'ip_address' => 15,
                                      'data_center_code' => 0,
                                      'svc_id' => 10,
                                      'cloud' => 10,
-                                     'serial_number' => 36
+                                     'serial_number' => 36,
+                                     'tags' => 20
                                  }
                              }
                          }
                      })
 
-$cmdb = PPInventory.new($opt)
-$svc_cmdb = NOMS::CMDB.new($opt)
+$cmdb = NOMS::CMDB.new($opt)
 $pcmapi = PCM::Client.new($opt)
+
+def parse_format(fields, type)
+    dbg "Specified fields: #{fields.inspect}"
+    if fields.nil? or fields.empty?
+        dbg "   no specification"
+    elsif fields.respond_to? :to_ary
+        dbg "   fields are already array"
+    else
+        dbg "   splitting on ','"
+        fields = fields.split(',')
+    end
+    if ! fields.empty?
+        fields.map do |fieldname|
+            if m = /([^=]+)=(\d+)/.match(fieldname)
+                fieldname = m[1]
+                $opt['format-field'][type]['length'][fieldname] = m[2].to_i
+            end
+            fieldname
+        end
+    else
+        nil
+    end
+end
 
 def fmt_string(type='instance', fields=nil)
     fields = fmt_fields(type, fields)
@@ -80,7 +101,7 @@ end
 
 def fmt_fields(type='instance', fields=nil)
     if fields.nil?
-        fields = $opt['format-field'][type]['fields']
+        fields = parse_format($opt['fields'], type) || $opt['format-field'][type]['fields']
     end
     fields
 end
@@ -107,7 +128,7 @@ def record_formatted_output(object, type='instance', fields=nil)
     fields = fmt_fields(type, fields)
     all_fields = object.keys
     fields = fields & all_fields
-    fieldlist = fields + (all_fields - fields)
+    fieldlist = parse_format($opt['fields'], type) || fields + (all_fields - fields)
     fieldlist.map { |f|
         $opt['label'] ? "#{f}: #{object[f]}" : object[f]
     }.join("\n")
@@ -276,10 +297,10 @@ def env(args)
     command = args.shift
     case command
     when 'list'
-        $svc_cmdb.environments
+        $cmdb.environments
     when 'show', 'info'
         env_name = args.shift
-        $svc_cmdb.environment env_name
+        $cmdb.environment env_name
     else
         $stderr.puts "Unknown env command '#{command}'"
         Process.exit(2)
@@ -363,6 +384,8 @@ noms - CLI for New Operations Management Stack
    noms command [options] [arguments]
       cmdb [subcommand]
          query [condition [...]] - Query for systems
+         set fqdn field=value [field=value [...]] - Update system attributes
+         show fqdn - Show fields for one system
       instance [subcommand] - Operate on NOMS instances
          add [attribute=value [...]] - Add a new NOMS instance
          list [cloud] - List NOMS instances (in cloud)
@@ -418,6 +441,32 @@ Remove an instance. B<Warning:> This cannot be canceled or undone. Use the
 B<--dry-run> option to see the id of the box that will be deleted.
 
 =back
+
+=over 4
+
+=item cmdb
+
+Perform operations on the CMDB.
+
+=item show
+
+Show field values for the specified system (identified by fqdn).
+
+=item query
+
+Perform a query and display tabular results.
+
+=item set
+
+Set field values for the system in the CMDB.
+
+=head2 Options
+
+=over 4
+
+=item --fields
+
+Use the specified comma-separated list of fields for printing results.
 
 =head1 EXAMPLES
 

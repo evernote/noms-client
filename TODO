@@ -1,4 +1,2 @@
 * Mocking framework for httpclient with hooks for
-  individual clients, like ppinventory
-* Unit tests
-* Convert noms to use noms/cmdb instead of ppinventory
+  individual clients

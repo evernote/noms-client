@@ -17,6 +17,7 @@
 
 
 require 'net/http'
+require 'net/https'
 require 'rubygems'
 require 'rexml/document'
 require 'json'
@@ -121,6 +122,18 @@ class NOMS::HttpClient
         end
         self.dbg("#{method.inspect} => #{url.to_s}")
         http = Net::HTTP.new(url.host, url.port)
+        http.use_ssl = true if url.scheme == 'https'
+        if http.use_ssl?
+            self.dbg("using SSL/TLS")
+            if @opt[config_key].has_key? 'verify-with-ca'
+                http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+                http.ca_file = @opt[config_key]['verify-with-ca']
+            else
+                http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+            end
+        else
+            self.dbg("NOT using SSL/TLS")
+        end
         reqclass = case method
                    when :GET
                        Net::HTTP::Get
@@ -134,8 +147,11 @@ class NOMS::HttpClient
         request = reqclass.new(url.request_uri)
         self.dbg request.to_s
         if @opt[config_key].has_key? 'username'
+            self.dbg "will do basic authentication as #{@opt[config_key]['username']}"
             request.basic_auth(@opt[config_key]['username'],
                           @opt[config_key]['password'])
+        else
+            self.dbg "no authentication"
         end
         if opt.has_key? :body
           content_type = opt[:content_type] || default_content_type
@@ -148,7 +164,7 @@ class NOMS::HttpClient
                            opt[:body]
                          end
         end
-            
+
         response = http.request(request)
         self.dbg response.to_s
         if response.is_a? Net::HTTPRedirection

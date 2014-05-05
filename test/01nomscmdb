@@ -1,17 +1,17 @@
 #!/usr/bin/env rspec
 
-require 'ppinventory'
+require 'noms/cmdb'
 
 $opt = { "cmdb" => { "url" => "http://cmdb/cmdb_api/v1" } }
 
-describe PPInventory do
+describe NOMS::CMDB do
 
     describe "#new" do
 
         it "creates a new CMDB client object" do
 
-            obj = PPInventory.new($opt)
-            obj.should be_a PPInventory
+            obj = NOMS::CMDB.new($opt)
+            obj.should be_a NOMS::CMDB
 
         end
 

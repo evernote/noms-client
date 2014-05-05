@@ -23,7 +23,29 @@ end
 class NOMS::CMDB < NOMS::HttpClient
 
   def config_key
-    'inventory'
+    'cmdb'
+  end
+
+  def query(type, *condlist)
+    do_request(:GET => "#{type}", :query => condlist.join('&'))
+  end
+
+  def key_field_of(type)
+      case type
+      when 'system'
+          'fqdn'
+      else
+          'id'
+      end
+  end
+
+  def get_or_assign_system_name(serial)
+      do_request :GET => "pcmsystemname/#{serial}"
+  end
+
+  def update(type, obj, key=nil)
+      key ||= obj[key_field_of(type)]
+      do_request(:PUT => "#{type}/#{key}", :body => obj)
   end
 
   def environments
