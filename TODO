@@ -1,2 +1,9 @@
+* Needs to not truncate field values
+* Documentation of libraries and how to use
+* Add csv and json output formats
+* Make use of --fields and --format and stuff
+  more clear in documentation
+* shortcut options for common use cases (like
+  --short for tighter output without column headings)
 * Mocking framework for httpclient with hooks for
   individual clients
