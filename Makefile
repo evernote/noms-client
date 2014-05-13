@@ -1,5 +1,5 @@
 NAME=noms-client
-VERSION=1.6
+VERSION=1.6.1
 RELEASE=1
 SOURCE=$(NAME)-$(VERSION).tar.gz
 # Your executable files, e.g. frobisher or bin/frobisher - will be installed in .../bin
