@@ -1,4 +1,3 @@
-* Needs to not truncate field values
 * Documentation of libraries and how to use
 * Add csv and json output formats
 * Make use of --fields and --format and stuff
