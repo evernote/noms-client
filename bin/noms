@@ -95,7 +95,7 @@ def fmt_string(type='instance', fields=nil)
     fields.map do |field|
         len = $opt['format-field'][type]['length'][field]
         len = field.length unless (len and len > 0)
-        "%-#{len}.#{len}s"
+        "%-#{len}s"
     end.join(" ")
 end
 
