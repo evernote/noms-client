@@ -14,10 +14,13 @@
 # limitations under the License.
 # */
 
-$LOAD_PATH.unshift "/usr/local/lib"
+$LOAD_PATH.unshift"/usr/local/lib"
 require 'optconfig'
+require 'csv'
 require 'pcm/client'
 require 'noms/cmdb'
+
+$VERSION = '__VERSION__'
 
 $opt = Optconfig.new('noms', {
                          'pcm-api=s%' => {
@@ -27,6 +30,7 @@ $opt = Optconfig.new('noms', {
                              'url' => 'http://noms.ops-lab.net/inv_api/v1' },
                          'fields=s' => '',
                          'format=s' => 'text',
+                         'names!' => false,
                          'label!' => true,
                          'header!' => true,
                          'feedback!' => true,
@@ -48,13 +52,12 @@ $opt = Optconfig.new('noms', {
                              'system' => {
                                  'fields' => [
                                      'fqdn', 'status', 'ip_address',
-                                     'data_center_code', 'environment',
-                                     'serial_number'],
+                                     'data_center_code', 'environment'],
                                  'length' => {
-                                     'fqdn' => 29,
-                                     'status' => 10,
+                                     'fqdn' => 36,
+                                     'status' => 15,
                                      'ip_address' => 15,
-                                     'data_center_code' => 0,
+                                     'data_center_code' => 11,
                                      'svc_id' => 10,
                                      'cloud' => 10,
                                      'serial_number' => 36,
@@ -63,6 +66,22 @@ $opt = Optconfig.new('noms', {
                              }
                          }
                      })
+
+case $opt['format']
+when 'csv'
+    $opt['feedback'] = false
+when 'json'
+    $opt['feedback'] = false
+    $opt['header'] = false
+when 'text'
+else
+    fatal "Don't know how to produce #{$opt['format']} output"
+end
+
+if $opt['names']
+    $opt['header'] = false
+    $opt['feedback'] = false
+end
 
 $cmdb = NOMS::CMDB.new($opt)
 $pcmapi = PCM::Client.new($opt)
@@ -108,20 +127,41 @@ end
 
 def fmt_line(obj, type='instance', fields=nil)
     fields = fmt_fields(type, fields)
-    fmt_string(type, fields) % fields.map { |f| obj[f] }
+    case $opt['format']
+    when 'csv'
+        CSV.generate_line(fields.map { |f| obj[f] }).chomp
+    else
+        fmt_string(type, fields) % fields.map { |f| obj[f] }
+    end
 end
 
 def fmt_header(type='instance', fields=nil)
     fields = fmt_fields(type, fields)
-    fmt_string(type, fields) % fields
+    case $opt['format']
+    when 'csv'
+        CSV.generate_line(fields).chomp
+    else
+        fmt_string(type, fields) % fields
+    end
 end
 
 def formatted_output(objects, type='instance', fields=nil)
     puts fmt_header(type, fields) if $opt['header']
-    results = objects.map do |obj|
-        fmt_line(obj, type, fields)
-    end.join("\n")
+    results =
+        case $opt['format']
+        when 'json'
+            fields = fmt_fields(type, fields)
+            fieldlist = parse_format($opt['fields'], type) || fields
+            JSON.pretty_generate(objects.map do |o|
+                                     Hash[fieldlist.map { |f| [f, o[f]] }]
+                                 end)
+        else
+            objects.map do |obj|
+            fmt_line(obj, type, fields)
+        end.join("\n")
+    end
     results += "\n#{objects.length} objects" if $opt['feedback']
+    results
 end
 
 def record_formatted_output(object, type='instance', fields=nil)
@@ -129,9 +169,17 @@ def record_formatted_output(object, type='instance', fields=nil)
     all_fields = object.keys
     fields = fields & all_fields
     fieldlist = parse_format($opt['fields'], type) || fields + (all_fields - fields)
-    fieldlist.map { |f|
-        $opt['label'] ? "#{f}: #{object[f]}" : object[f]
-    }.join("\n")
+    case $opt['format']
+    when 'json'
+        JSON.pretty_generate(Hash[fieldlist.map { |f| [f, object[f]] }])
+    when 'csv'
+        ($opt['label'] ? CSV.generate_line(fieldlist) : '') +
+            CSV.generate_line(fieldlist.map { |f| object[f] })
+    else
+        fieldlist.map { |f|
+            $opt['label'] ? "#{f}: #{object[f]}" : object[f]
+        }.join("\n")
+    end
 end
 
 def extractkvs(args)
@@ -217,6 +265,7 @@ def cmdb_show(args)
 end
 
 def cmdb(args)
+    $opt['fields'] = ['fqdn'] if $opt['names']
     cmd = args.shift
     opt, argv = extractkvs args
     case cmd
@@ -338,6 +387,7 @@ end
 
 
 def instance(args)
+    $opt['fields'] = ['name'] if $opt['names']
     cmd = args.shift
     case cmd
     when 'list'
@@ -395,9 +445,7 @@ noms - CLI for New Operations Management Stack
 
 =head1 DESCRIPTION
 
-The C<noms> command is used to set up and manage virtual and physical environments. The
-interface is inspired by the C<vagrant> (L<http://vagrantup.com>) package used
-for setting up VirtualBox environments for software development.
+The C<noms> command is used to set up and manage virtual and physical environments.
 
 =head2 Commands
 
@@ -426,21 +474,17 @@ instances.
 
 =over 8
 
-=item add
-
-Add a new instance. Optional attributes/values can be added as key-value pairs
-separated by an equals sign (C<=>).
-
 =item list
 
 List instances. Use the B<--verbose> option to list more fields
 
-=item remove
+Example: C<noms instance list us-east-1>
 
-Remove an instance. B<Warning:> This cannot be canceled or undone. Use the
-B<--dry-run> option to see the id of the box that will be deleted.
+=item show
 
-=back
+Show information about the named instance.
+
+Example: C<noms instance show us-east-1 webserver1.ops-lab.net>
 
 =over 4
 
@@ -452,15 +496,33 @@ Perform operations on the CMDB.
 
 Show field values for the specified system (identified by fqdn).
 
+Example: C<noms cmdb show webserver1.ops-lab.net>
+
 =item query
 
-Perform a query and display tabular results.
+Perform a query and display tabular results (see the --fields
+and --format option).
+
+Example: C<noms cmdb query status=allocated data_center_code=XDC1 'tags!~backup'>
 
 =item set
 
 Set field values for the system in the CMDB.
 
+Example: C<noms cmdb set webserver1.ops-lab.net status=decommissioned>
+
 =head2 Options
+
+=over 4
+
+=items --names
+
+Just print the names of the entries. (Synonymous with --noheader --nofeedback --fields=fqdn
+or --fields=name)
+
+Example: C<noms cmdb query status=idle --names>
+
+Example: C<noms instance list --names>
 
 =over 4
 
@@ -468,9 +530,23 @@ Set field values for the system in the CMDB.
 
 Use the specified comma-separated list of fields for printing results.
 
-=head1 EXAMPLES
+Example: C<noms cmdb query 'status!=decommissioned' --fields=fqdn,operatingsystem,status>
 
-   noms instance list
+=item --format
+
+Specify the output format. One of: text, csv or json (default is 'text').
+
+Example: C<noms cmdb show webserver1.ops-lab.net --format=json> 
+
+=item --noheader
+
+Don't print column headings (in text or CSV output).
+
+=item --nofeedback
+
+Don't print object counts.
+
+=back
 
 =head1 AUTHOR
 
