@@ -16,6 +16,7 @@
 # */
 
 require 'noms/httpclient'
+require 'uri'
 
 class NOMS
 
@@ -28,7 +29,7 @@ class NOMS::CMDB < NOMS::HttpClient
   end
 
   def query(type, *condlist)
-    do_request(:GET => "#{type}", :query => condlist.join('&'))
+    do_request(:GET => "#{type}", :query => URI.encode(condlist.join('&')))
   end
 
   def key_field_of(type)
