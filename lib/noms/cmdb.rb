@@ -15,6 +15,7 @@
 # limitations under the License.
 # */
 
+require 'noms/httpclient'
 
 class NOMS
 
