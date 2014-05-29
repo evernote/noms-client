@@ -49,7 +49,6 @@ class NOMS::Nagui < NOMS::HttpClient
   def query(type, *condlist)
     do_request(:GET => "#{type}", :query => URI.encode(condlist.join('&')))
   end
-
   def check_host_online(host)
     @opt['host_up_command'] ||= 'check-host-alive'
     nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{@opt['host_up_command']}")
