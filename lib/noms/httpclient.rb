@@ -110,7 +110,10 @@ class NOMS::HttpClient
         method = [:GET, :PUT, :POST, :DELETE].find do |m|
             opt.has_key? m
         end
-        method ||= :GET
+        if method == nil
+          method = :GET
+          opt[method] = ''
+        end
         rel_uri = opt[method]
         opt[:redirect_limit] ||= 10
         if opt[:absolute]
