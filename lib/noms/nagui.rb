@@ -23,13 +23,22 @@ class NOMS
 end
 
 class NOMS::Nagui < NOMS::HttpClient
+  def dbg(msg)
+      if @opt.has_key? 'debug' and @opt['debug'] > 2
+          puts "DBG(#{self.class}): #{msg}"
+      end
+  end
+  def initialize(opt)
+      @opt = opt
+      self.dbg "Initialized with options: #{opt.inspect}"
+  end
 
   def config_key
     'nagui'
   end
 
   def system(hostname)
-    results = do_request( :query => URI.encode("query=GET hosts|Filter: name ~~ #{hostname}"))
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name ~~ #{hostname}"))
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -39,5 +48,15 @@ class NOMS::Nagui < NOMS::HttpClient
 
   def query(type, *condlist)
     do_request(:GET => "#{type}", :query => URI.encode(condlist.join('&')))
+  end
+
+  def check_host_online(host)
+    @opt['host_up_command'] ||= 'check-host-alive'
+    nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{@opt['host_up_command']}")
+    if nagcheck['state'] == 0
+      true
+    else
+      false
+    end
   end
 end

@@ -158,6 +158,7 @@ class NOMS::HttpClient
         end
         if opt.has_key? :body
           content_type = opt[:content_type] || default_content_type
+          request['Content-Type'] = content_type
           request.body = case content_type
                          when /json$/
                            opt[:body].to_json
@@ -167,7 +168,6 @@ class NOMS::HttpClient
                            opt[:body]
                          end
         end
-
         response = http.request(request)
         self.dbg response.to_s
         if response.is_a? Net::HTTPRedirection

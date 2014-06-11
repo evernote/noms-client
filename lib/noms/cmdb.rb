@@ -41,6 +41,14 @@ class NOMS::CMDB < NOMS::HttpClient
       end
   end
 
+  def system(hostname)
+    do_request(:GET => "system/#{hostname}")
+  end
+
+  def system_audit(hostname)
+    do_request(:GET => "inv_audit", :query => "entity_key=#{hostname}")
+  end
+
   def get_or_assign_system_name(serial)
       do_request :GET => "pcmsystemname/#{serial}"
   end
