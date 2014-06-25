@@ -1,6 +1,6 @@
 NAME=noms-client
 VERSION=1.7.1
-RELEASE=1
+RELEASE=2
 SOURCE=$(NAME)-$(VERSION).tar.gz
 EXES=bin/noms
 LIBS=lib/noms/cmdb.rb lib/noms/httpclient.rb lib/noms/nagui.rb lib/pcm/client.rb
