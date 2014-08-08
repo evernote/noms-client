@@ -58,6 +58,9 @@ class NOMS::CMDB < NOMS::HttpClient
       do_request(:PUT => "#{type}/#{key}", :body => obj)
   end
 
+  def tc_post(obj)
+      do_request(:POST => "fact", :body => obj)
+  end
   def environments
     do_request :GET => 'environments'
   end
