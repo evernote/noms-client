@@ -1,5 +1,5 @@
 NAME=noms-client
-VERSION=1.7.2
+VERSION=1.7.3
 RELEASE=2
 SOURCE=$(NAME)-$(VERSION).tar.gz
 EXES=bin/noms

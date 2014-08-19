@@ -69,4 +69,14 @@ class NOMS::CMDB < NOMS::HttpClient
     do_request :GET => "environments/#{env}"
   end
 
+  def services(env)
+    do_request :GET => "environments/#{env}/services"
+  end
+
+  def service(env,service)
+    do_request :GET => "environments/#{env}/services/#{service}"
+  end
+
+
+
 end
