@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # /* Copyright 2014 Evernote Corporation. All rights reserved.
 #    Copyright 2013 Proofpoint, Inc. All rights reserved.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,20 +15,19 @@
 # limitations under the License.
 # */
 
-$LOAD_PATH.unshift"/usr/local/lib"
+$LOAD_PATH.unshift '/usr/local/lib'
 require 'optconfig'
 require 'csv'
-require 'pcm/client'
+require 'ncc/client'
 require 'noms/cmdb'
 
 $VERSION = '__VERSION__'
 
 $opt = Optconfig.new('noms', {
-                         'pcm-api=s%' => {
-                             'url' =>
-                             'http://noms.ops-lab.net/pcm_api/v2' },
+                         'ncc=s%' => {
+                             'url' => 'http://noms/ncc_api/v2' },
                          'cmdb=s%' => {
-                             'url' => 'http://noms.ops-lab.net/inv_api/v1' },
+                             'url' => 'http://cmdb/cmdb_api/v1' },
                          'fields=s' => '',
                          'format=s' => 'text',
                          'names!' => false,
@@ -84,7 +84,7 @@ if $opt['names']
 end
 
 $cmdb = NOMS::CMDB.new($opt)
-$pcmapi = PCM::Client.new($opt)
+$ncc = PCM::Client.new($opt)
 
 def parse_format(fields, type)
     dbg "Specified fields: #{fields.inspect}"
@@ -236,7 +236,7 @@ def desc(args)
                             'waitfor' => 'wait for CMDB query to be satisfied'
                         })
    when 'clouds'
-       generic_describe Hash[$pcmapi.clouds.map { |e| [e['name'],
+       generic_describe Hash[$ncc.clouds.map { |e| [e['name'],
                                      e['provider']] }]
    else
        $stderr.puts "Can't describe '#{what}'"
@@ -391,12 +391,12 @@ def instance(args)
     cmd = args.shift
     case cmd
     when 'list'
-        results = $pcmapi.list args
+        results = $ncc.list args
         formatted_output(results, 'instance')
     when 'info', 'show'
         cloud = args.shift
         id = args.shift
-        record_formatted_output $pcmapi.instance cloud, id
+        record_formatted_output $ncc.instance cloud, id
     when 'add'
         attrs = { :username => get_username, :size => 'm1.small' }
         attrs.update(args.empty? ? { } : parsekvs(args))

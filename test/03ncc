@@ -1,0 +1,16 @@
+#!/usr/bin/env rspec
+
+require 'ncc/client'
+
+describe NCC::Client do
+
+    context "initializing" do
+
+        it "creates an NCC::Client object" do
+            ncc = NCC::Client.new({})
+            expect(ncc).to be_an_instance_of NCC::Client
+        end
+
+    end
+
+end
