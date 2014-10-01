@@ -43,7 +43,7 @@ groups['_meta'] = { 'hostvars' => meta }
 
 $time[:pivot] = Time.now
 
-puts result.to_json
+puts groups.to_json
 
 $time[:output] = Time.now
 
