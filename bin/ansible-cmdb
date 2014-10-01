@@ -1,0 +1,70 @@
+#!/usr/bin/env ruby
+
+# this script is an ansible dynamic inventory that queries the cmdb-api
+# automatic group creation for status,roles,tags + 'allhosts' group for everthing
+ 
+$time = { }
+
+$LOAD_PATH.unshift '/usr/local/lib'
+$time[:start] = Time.now
+require 'json'
+require 'optconfig'
+require 'noms/cmdb'
+$time[:loaded] = Time.now
+
+opt = Optconfig.new('noms', { 'host=s' => nil, 'list!' => false, 'stats+' => 0 })
+cmdb = NOMS::CMDB.new(opt)
+
+$time[:initialized] = Time.now
+
+systems = cmdb.query('system', 'status!~(decommissioned|disposed)')
+
+groups = {
+    'allhosts' => [ ]
+}
+meta = { }
+
+$time[:cmdb] = Time.now
+
+result = systems.each do |system|
+    fqdn = system['fqdn']
+    if (system['roles'])
+        system['roles'].split(',').each { |role| groups[role] ||= [ ]; groups[role] << fqdn }
+    end
+    if (system['tags'])
+        system['tags'].split(' ').each { |tag| groups["tag_#{tag}"] ||= [ ]; groups["tag_#{tag}"] << fqdn }
+    end
+    groups[system['status']] ||= [ ]
+    groups[system['status']] << fqdn
+    groups['allhosts'] << fqdn
+    meta[fqdn] = system
+end
+groups['_meta'] = { 'hostvars' => meta }
+
+$time[:pivot] = Time.now
+
+puts result.to_json
+
+$time[:output] = Time.now
+
+if (opt['stats'] > 0)
+
+    def ms(t2, t1=:start)
+        ($time[t2] - $time[t1]) * 1000
+    end
+
+    groupct = groups.keys.length
+    hostct = groups['allhosts'].length
+    groups.delete('_meta')
+
+    if (opt['stats'] > 1)
+        $stderr.puts "// Groups:\n// * #{groups.map { |g, l| g + ' (' + l.length.to_s + ')'}.join("\n// * ")}"
+    end
+    $stderr.puts "// Times (#{hostct} hosts in #{groupct} groups):"
+    $stderr.puts "// loaded in #{ms(:loaded)} ms"
+    $stderr.puts "// initialized in #{ms(:initialized, :loaded)} ms"
+    $stderr.puts "// queried in #{ms(:cmdb, :initialized)} ms"
+    $stderr.puts "// pivoted in #{ms(:pivot, :cmdb)} ms"
+    $stderr.puts "// output in #{ms(:output, :pivot)} ms"
+end
+
