@@ -84,7 +84,7 @@ if $opt['names']
 end
 
 $cmdb = NOMS::CMDB.new($opt)
-$ncc = PCM::Client.new($opt)
+$ncc = NCC::Client.new($opt)
 
 def parse_format(fields, type)
     dbg "Specified fields: #{fields.inspect}"
