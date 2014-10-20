@@ -16,6 +16,7 @@
 # */
 
 require 'rubygems'
+$LOAD_PATH.unshift '/usr/local/lib'
 require 'optconfig'
 require 'etc'
 require 'csv'
