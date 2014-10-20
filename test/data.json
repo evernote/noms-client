@@ -1,0 +1,11 @@
+{ "cmdb": {
+  "/cmdb_api/v1/system": [
+     { "id": "test1.example.com",
+       "fqdn": "test1.example.com",
+       "status": "idle",
+       "environment": "testing",
+       "data_center_code": "DC1",
+       "ip_address": "10.0.0.1" }
+    ]
+  }
+}

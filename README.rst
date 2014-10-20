@@ -8,7 +8,7 @@ CLI for NOMS components:
 Client libraries for NOMS components:
 
 * cmdb
-* pcm-api v2
+* ncc-api
 
 Planned:
 

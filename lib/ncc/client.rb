@@ -44,11 +44,46 @@ class NCC::Client < NOMS::HttpClient
         end
     end
 
+    def instance(cloud, id)
+        do_request :GET => "clouds/#{cloud}/instances/#{id}"
+    end
+
     def clouds
         cloudnames = do_request :GET => "clouds"
         cloudnames.map do |cloudname|
-            do_request :GET => "clouds/#{cloudname}"
+            if cloudname.respond_to? :keys
+                cloudname
+            else
+                do_request :GET => "clouds/#{cloudname}"
+            end
         end
+    end
+
+    def create(cloud, attrs)
+        do_request :POST => "clouds/#{cloud}/instances",
+            :body => attrs
+    end
+
+    def delete(cloud, attrs)
+        # TODO: find by name
+        if attrs.has_key? :id
+            do_request :DELETE => "clouds/#{cloud}/instances/#{attrs[:id]}"
+        elsif attrs.has_key? :name
+            # For now I have to do this--not optimal, should be in NCC-API
+            instobj = (list cloud).find { |i| i['name'] == attrs[:name] }
+            if instobj
+                do_request :DELETE => "clouds/#{cloud}/instances/#{instobj['id']}"
+            else
+                raise "No instance found in cloud #{cloud} with name #{attrs[:name]}"
+            end
+        else
+            raise "Need to delete instance by name or id"
+        end
+    end
+
+    def create(cloud, attrs)
+        do_request :POST => "clouds/#{cloud}/instances",
+            :body => attrs
     end
 
     def instance(cloud, id)

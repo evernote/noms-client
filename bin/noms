@@ -17,6 +17,7 @@
 
 $LOAD_PATH.unshift '/usr/local/lib'
 require 'optconfig'
+require 'etc'
 require 'csv'
 require 'ncc/client'
 require 'noms/cmdb'
@@ -29,6 +30,7 @@ $opt = Optconfig.new('noms', {
                          'cmdb=s%' => {
                              'url' => 'http://cmdb/cmdb_api/v1' },
                          'fields=s' => '',
+                         'mock=s' => nil,
                          'format=s' => 'text',
                          'names!' => false,
                          'label!' => true,
@@ -36,13 +38,34 @@ $opt = Optconfig.new('noms', {
                          'feedback!' => true,
                          'waitfor-interval=i' => 5,
                          'timeout=i' => 600,
+                         'default-environment' => 'production',
                          'format-field=s%' => {
+                             'svcinst' => {
+                                 'fields' => [
+                                     'name', 'type', 'note'
+                                 ],
+                                 'length' => {
+                                     'name' => 20,
+                                     'type' => 20,
+                                     'note' => 30
+                                 }
+                             },
+                             'environment' => {
+                                 'fields' => [
+                                     'name', 'environment_name', 'note',
+                                 ],
+                                 'length' => {
+                                     'name' => 20,
+                                     'environment_name' => 20,
+                                     'note' => 30
+                                 }
+                             },
                              'instance' => {
                                  'fields' => [
                                      'name', 'status', 'size', 'image',
                                      'id'],
                                  'length' => {
-                                     'name' => 22,
+                                     'name' => 36,
                                      'status' => 10,
                                      'size' => 10,
                                      'id' => 36,
@@ -51,12 +74,13 @@ $opt = Optconfig.new('noms', {
                              },
                              'system' => {
                                  'fields' => [
-                                     'fqdn', 'status', 'ip_address',
-                                     'data_center_code', 'environment'],
+                                     'fqdn', 'environment_name', 'status', 'roles', 'ipaddress',
+                                     'data_center_code'],
                                  'length' => {
                                      'fqdn' => 36,
+                                     'environment_name' => 16,
                                      'status' => 15,
-                                     'ip_address' => 15,
+                                     'ipaddress' => 15,
                                      'data_center_code' => 11,
                                      'svc_id' => 10,
                                      'cloud' => 10,
@@ -66,6 +90,11 @@ $opt = Optconfig.new('noms', {
                              }
                          }
                      })
+
+if $opt['mock']
+    NCC::Client.mock! $opt['mock']
+    NOMS::CMDB.mock! $opt['mock']
+end
 
 case $opt['format']
 when 'csv'
@@ -228,16 +257,33 @@ end
 def desc(args)
    what = args.shift
    case what
-   when 'commands'
+   when 'commands', nil
        generic_describe({
+                            'describe' => 'describe things',
                             'commands' => 'list commands',
-                            'cmdb' => 'interact with CMDB (Inventory)',
-                            'instance' => 'interact with clouds (PCM-API)',
-                            'waitfor' => 'wait for CMDB query to be satisfied'
+                            'cmdb' => 'interact with NOMS CMDB (Inventory)',
+                            'instance' => 'interact with clouds (NCC-API)',
+                            'waitfor' => 'wait for CMDB query to be satisfied',
+                            'environment' => 'interact with NOMS CMDB environments',
+                            'svcinst' => 'manage CMDB service instances'
                         })
    when 'clouds'
        generic_describe Hash[$ncc.clouds.map { |e| [e['name'],
                                      e['provider']] }]
+   when 'systems', 'cmdb'
+       help = $cmdb.help 'system'
+       puts help.inspect
+       generic_describe(help.select { |f|
+                            f.respond_to? :has_key? and f.has_key? 'label' }.map { |f| f['label'] })
+   when 'describe', 'desc'
+       generic_describe ({
+                             'describe' => 'describe resources',
+                             'clouds' => 'describe available clouds',
+                             'instances' => 'describe instances',
+                             'systems|cmdb' => 'describe CMDB entries (system)',
+                             'environments' => 'describe environments',
+                             'svcinst' => 'describe CMDB service instances'
+                         })
    else
        $stderr.puts "Can't describe '#{what}'"
    end
@@ -303,6 +349,7 @@ def eval_conditions(count, results)
     expr.call results
 end
 
+# TODO: Needs to be factored into general waiting lib
 def waitfor(args)
     count = args.shift
     commands = ['cmdb']
@@ -342,22 +389,116 @@ def waitfor(args)
     end
 end
 
+def find_key(h, k, p=nil)
+    puts "         - looking for #{k} at path #{p.inspect}"
+    if h.has_key? k
+        return (p || []) + [k]
+    else
+        h.keys.each do |nk|
+            find_key(h[nk], k, (p || []) + [nk])
+        end
+    end
+    return nil
+end
+
+def make_tree(envs, tree={})
+    puts "make_tree(#{envs.inspect}, #{tree.inspect})"
+    return tree if envs.length == 0
+    # Kind of ugly using select for side effects
+    pruned_envs = envs.reject do |env|
+        puts "   checking #{env['name']} < #{env['environment_name']}"
+        if env['environment_name'].nil? or env['name'] == env['environment_name']
+            puts "      root environment, setting"
+            tree[env['name']] ||= { }
+            true
+        elsif path = find_key(tree, env['environment_name'])
+            puts "      found parent #{env['environment_name']} at #{path.inspect}"
+            path_set(tree, path, { env['name'] => { } })
+            true
+        else
+            puts "      couldn't find #{env['environment_name']}, save for later"
+            false
+        end
+    end
+    make_tree(pruned_envs, tree)
+end
+
+def path_set(hash, keypath, value)
+    if keypath.length == 1
+        hash[keypath[0]] = value
+    else
+        next_key = keypath.shift
+        path_set(hash[next_key], keypath, value)
+    end
+end
+
 def env(args)
+    $opt['fields'] = ['name'] if $opt['names']
     command = args.shift
     case command
     when 'list'
-        $cmdb.environments
+        formatted_output $cmdb.environments, 'environment'
     when 'show', 'info'
         env_name = args.shift
-        $cmdb.environment env_name
+        record_formatted_output($cmdb.environment(env_name), 'environment')
+    when 'tree'
+        make_tree($cmdb.environments).to_yaml
+    when 'add'
+        name = args.shift
+        attrs = { :environment_name => 'production' }
+        attrs.update(args.empty? ? { } : parsekvs(args))
+        record_formatted_output($cmdb.create_environment(name, attrs))
+    when 'remove'
+        name = args.shift
+        result = $cmdb.delete_environment name
+        # cmdb-api returns '1'. ugh.
+        nil unless result != 1
     else
         $stderr.puts "Unknown env command '#{command}'"
         Process.exit(2)
     end
 end
 
+def parse_svcinst(s)
+    environment_name, service_name = s.split('.')
+    if service_name.nil?
+        service_name = environment_name
+        environment_name = $opt['default-environment']
+    end
+    return environment_name, service_name
+end
+
+def svcinst(args)
+    $opt['fields'] = ['name'] if $opt['names']
+    command = args.shift
+    case command
+    when 'list'
+        formatted_output($cmdb.services(args[0] || $opt['default-environment']), 'svcinst')
+    when 'show', 'info'
+        env, svc = parse_svcinst(args[0])
+        record_formatted_output($cmdb.service(env, svc), 'svcinst')
+    when 'add'
+        env, svc = parse_svcinst(args.shift)
+        attrs = parsekvs(args)
+        $cmdb.create_service(env, svc, attrs)
+        nil
+    when 'remove'
+        env, svc = parse_svcinst(args.shift)
+        $cmdb.delete_service(env, svc)
+    when 'set'
+        env, svc = parse_svcinst(args.shift)
+        attrs = parsekvs(args)
+        $cmdb.update_service(env, svc, attrs)
+        nil
+    else
+        $stderr.puts "Unknown svcinst '#{command}'"
+    end
+end
+
 def outs(output)
-    puts output if (output and ! output.empty?)
+    unless [nil, true, false].include? output
+        puts output.to_s if (output.to_s and output.to_s.length != 0)
+    end
 end
 
 def dispatch_command(argv)
@@ -370,6 +511,8 @@ def dispatch_command(argv)
         outs desc argv
     when 'cmdb', 'inv'
         outs cmdb argv
+    when 'svc', 'svcinst'
+        outs svcinst argv
     when 'environment', 'env'
         outs env argv
     when 'instance'
@@ -377,7 +520,7 @@ def dispatch_command(argv)
     when 'waitfor'
         waitfor argv
     when nil
-        $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor} [arg]"
+        $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor|...} [arg]"
         Process.exit(1)
     else
         $stderr.puts "Unknown command '#{command}'"
@@ -391,33 +534,39 @@ def instance(args)
     cmd = args.shift
     case cmd
     when 'list'
-        results = $ncc.list args
+        if args.length < 1
+            $stderr.puts "Need to specify cloud to list instances (noms describe clouds)"
+            Process.exit(1)
+        end
+        results = $ncc.list *args
         formatted_output(results, 'instance')
     when 'info', 'show'
         cloud = args.shift
         id = args.shift
         record_formatted_output $ncc.instance cloud, id
     when 'add'
+        cloud = args.shift
         attrs = { :username => get_username, :size => 'm1.small' }
         attrs.update(args.empty? ? { } : parsekvs(args))
         dbg attrs.inspect
-      inst = $client.add(attrs)
-      fmt_instance(inst) unless inst.nil?
+        inst = $ncc.create(cloud, attrs)
+        record_formatted_output(inst) unless inst.nil?
    when 'remove'
-      name = args.shift
-      fatal("No name to remove") if name.nil?
-      attrs = { }
-      if /=/.match(name)
-          attrs = parsekvs(args.unshift(name))
-      elsif /\./.match(name)
-          attrs = { :hostname => name }
-      elsif /-/.match(name)
+        cloud = args.shift
+        name = args.shift
+        fatal("No name to remove") if name.nil?
+        attrs = { }
+        if /=/.match(name)
+            attrs = parsekvs(args.unshift(name))
+        elsif /\./.match(name)
+          attrs = { :name => name }
+        elsif /-/.match(name)
           attrs = { :id => name }
-      end
+        end
       dbg attrs.inspect
-      $client.delete(attrs)
+      $ncc.delete(cloud, attrs)
    else
-      $stderr.puts "Unknown box command #{cmd}"
+      $stderr.puts "Unknown instance command #{cmd}"
         Process.exit(3)
    end
 end
@@ -432,15 +581,28 @@ noms - CLI for New Operations Management Stack
 =head1 SYNOPSIS
 
    noms command [options] [arguments]
-      cmdb [subcommand]
+      cmdb subcommand
          query [condition [...]] - Query for systems
          set fqdn field=value [field=value [...]] - Update system attributes
          show fqdn - Show fields for one system
-      instance [subcommand] - Operate on NOMS instances
-         add [attribute=value [...]] - Add a new NOMS instance
-         list [cloud] - List NOMS instances (in cloud)
-         remove { name | attribute=value } [attribute=value [...]] - Remove
-            a NOMS instance
+      instance subcommand - Operate on NOMS instances
+         add cloud [attribute=value [...]] - Add a new NOMS instance
+         list cloud - List NOMS instances (in cloud)
+         show cloud instanceid
+         remove instanceid - Terminate a cloud instanc
+      environment subcommand - Operate on NOMS environment
+         add name [environment_name=value] [note=value]
+             - Add a new environment
+         list - List environments
+         tree - Show environments in a tree
+         show name - Show details on <environment>
+         remove name
+      svcinst subcommand - Operate on NOMS service instances
+         add [environment.]service
+         set [environment.]service property=value
+         show [environment.]service
+         list [environment]
+         remove [environment.]service
       options as described in Optconfig
 
 =head1 DESCRIPTION

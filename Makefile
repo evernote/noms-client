@@ -1,5 +1,5 @@
 NAME=noms-client
-VERSION=1.7.7
+VERSION=1.8
 RELEASE=1
 SOURCE=$(NAME)-$(VERSION).tar.gz
 EXES=bin/noms bin/ansible-cmdb

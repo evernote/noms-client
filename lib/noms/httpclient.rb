@@ -22,6 +22,20 @@ require 'rubygems'
 require 'rexml/document'
 require 'json'
 
+class Hash
+
+    # The mkdir -p of []=
+    def set_deep(keypath, value)
+        if keypath.length == 1
+            self[keypath[0]] = value
+        else
+            self[keypath[0]] ||= Hash.new
+            self[keypath[0]].set_deep(keypath[1 .. -1], value)
+        end
+    end
+
+end
+
 class NOMS
 
 end
@@ -63,8 +77,30 @@ end
 
 class NOMS::HttpClient
 
+    @@mocked = false
+
+    def self.mock!(datafile=nil)
+        @@mocked = true
+        @@mockdata = datafile
+    end
+
+    def self.mockery
+        NOMS::HttpClient::RestMock
+    end
+
+    def initialize(opt)
+        @delegate = (@@mocked ? self.class.mockery.new(self, opt) :
+            NOMS::HttpClient::Real.new(self, opt))
+    end
+
     def config_key
         'httpclient'
+    end
+
+    # Used mostly for mocking behavior
+    def allow_partial_updates
+        # Replace during PUT
+        false
     end
 
     def default_content_type
@@ -73,12 +109,6 @@ class NOMS::HttpClient
 
     def ignore_content_type
         false
-    end
-
-    def initialize(opt)
-        @opt = opt
-        @opt['return-hash'] = true unless @opt.has_key? 'return-hash'
-        self.dbg "Initialized with options: #{opt.inspect}"
     end
 
     def dbg(msg)
@@ -105,6 +135,206 @@ class NOMS::HttpClient
     def rtrim(s, c='/')
         trim(s, c, :right)
     end
+
+    def method_missing(meth, *args, &block)
+        @delegate.send(meth, *args, &block)
+    end
+
+end
+
+class NOMS::HttpClient::RestMock < NOMS::HttpClient
+
+    def initialize(delegator, opt)
+        @delegator = delegator
+        @data = { }
+        @opt = opt
+        @opt['return-hash'] = true unless @opt.has_key? 'return-hash'
+        self.dbg "Initialized with options: #{opt.inspect}"
+    end
+
+    def allow_partial_updates
+        @delegator.allow_partial_updates
+    end
+
+    def config_key
+        @delegator.config_key
+    end
+
+    def default_content_type
+        @delegator.default_content_type
+    end
+
+    def ignore_content_type
+        @delegator.ignore_content_type
+    end
+
+
+    def id_field(dummy=nil)
+        'id'
+    end
+
+    def maybe_save
+        if @@mockdata
+            File.open(@@mockdata, 'w') { |fh| fh << JSON.pretty_generate(@data) }
+        end
+    end
+
+    def maybe_read
+        if @@mockdata and File.exist? @@mockdata
+            @data = File.open(@@mockdata, 'r') { |fh| JSON.load(fh) }
+        end
+    end
+
+    def all_data
+        maybe_read
+        @data
+    end
+
+    def do_request(opt={})
+        maybe_read
+        method = [:GET, :PUT, :POST, :DELETE].find do |m|
+            opt.has_key? m
+        end
+        method ||= :GET
+        opt[method] ||= ''
+
+        rel_uri = opt[method]
+        dbg "relative URI is #{rel_uri}"
+        url = URI.parse(@opt[config_key]['url'])
+        url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
+        url.query = opt[:query] if opt.has_key? :query
+        dbg "url=#{url}"
+
+        # We're not mocking absolute URLs specifically
+        case method
+
+        when :PUT
+            # Upsert - whole objects only
+            dbg "Processing PUT"
+            @data[url.host] ||= { }
+            collection_path_components = url.path.split('/')
+            id = collection_path_components.pop
+            collection_path = collection_path_components.join('/')
+            @data[url.host][collection_path] ||= [ ]
+            object_index =
+                @data[url.host][collection_path].index { |el| el[id_field(collection_path)] == id }
+            if object_index.nil?
+                object = opt[:body].merge({ id_field(collection_path) => id })
+                dbg "creating in collection #{collection_path}: #{object.inspect}"
+                @data[url.host][collection_path] << opt[:body].merge({ id_field(collection_path) => id })
+            else
+                if allow_partial_updates
+                    object = @data[url.host][collection_path][object_index].merge(opt[:body])
+                    dbg "updating in collection #{collection_path}: to => #{object.inspect}"
+                else
+                    object = opt[:body].merge({ id_field(collection_path) => id })
+                    dbg "replacing in collection #{collection_path}: #{object.inspect}"
+                end
+                @data[url.host][collection_path][object_index] = object
+            end
+            maybe_save
+            object
+
+        when :POST
+            # Insert/Create
+            dbg "Processing POST"
+            @data[url.host] ||= { }
+            collection_path = url.path
+            @data[url.host][collection_path] ||= [ ]
+            id = opt[:body][id_field(collection_path)] || opt[:body].object_id
+            object = opt[:body].merge({id_field(collection_path) => id})
+            dbg "creating in collection #{collection_path}: #{object.inspect}"
+            @data[url.host][collection_path] << object
+            maybe_save
+            object
+
+        when :DELETE
+            dbg "Processing DELETE"
+            if @data[url.host]
+                if @data[url.host].has_key? url.path
+                    # DELETE on a collection
+                    @data[url.host].delete url.path
+                    true
+                elsif @data[url.host].has_key? url.path.split('/')[0 .. -2].join('/')
+                    # DELETE on an object by Id
+                    path_components = url.path.split('/')
+                    id = path_components.pop
+                    collection_path = path_components.join('/')
+                    object_index = @data[url.host][collection_path].index { |obj| obj[id_field(collection_path)] == id }
+                    if object_index.nil?
+                        raise "Error (#{self.class} making #{config_key} request " +
+                            "(404): No such object id (#{id_field(collection_path)} == #{id}) in #{collection_path}"
+                    else
+                        @data[url.host][collection_path].delete_at object_index
+                    end
+                    maybe_save
+                    true
+                else
+                    raise "Error (#{self.class}) making #{config_key} request " +
+                        "(404): No objects at location or in collection #{url.path}"
+                end
+            else
+                raise "Error (#{self.class}) making #{config_key} request " +
+                    "(404): No objects on #{url.host}"
+            end
+
+        when :GET
+            dbg "Performing GET"
+            if @data[url.host]
+                dbg "we store data for #{url.host}"
+                if @data[url.host].has_key? url.path
+                    # GET on a collection
+                    # TODO get on the query string
+                    dbg "returning collection #{url.path}"
+                    @data[url.host][url.path]
+                elsif @data[url.host].has_key? url.path.split('/')[0 .. -2].join('/')
+                    # GET on an object by Id
+                    path_components = url.path.split('/')
+                    id = path_components.pop
+                    collection_path = path_components.join('/')
+                    dbg "searching in collection #{collection_path}: id=#{id}"
+                    dbg "data: #{@data[url.host][collection_path].inspect}"
+                    object = @data[url.host][collection_path].find { |obj| obj[id_field(collection_path)] == id }
+                    if object.nil?
+                        raise "Error (#{self.class} making #{config_key} request " +
+                            "(404): No such object id (#{id_field(collection_path)} == #{id}) in #{collection_path}"
+                    end
+                    dbg "   found #{object.inspect}"
+                    object
+                else
+                    raise "Error (#{self.class}) making #{config_key} request " +
+                        "(404): No objects at location or in collection #{url.path}"
+                end
+            else
+                raise "Error (#{self.class}) making #{config_key} request " +
+                    "(404): No objects on #{url.host}"
+            end
+        end
+    end
+
+end
+
+class NOMS::HttpClient::Real < NOMS::HttpClient
+
+    def initialize(delegator, opt)
+        @delegator = delegator
+        @opt = opt
+        @opt['return-hash'] = true unless @opt.has_key? 'return-hash'
+        self.dbg "Initialized with options: #{opt.inspect}"
+    end
+
+    def config_key
+        @delegator.config_key
+    end
+
+    def default_content_type
+        @delegator.default_content_type
+    end
+
+    def ignore_content_type
+        @delegator.ignore_content_type
+    end
+
 
     def do_request(opt={})
         method = [:GET, :PUT, :POST, :DELETE].find do |m|
@@ -201,7 +431,11 @@ class NOMS::HttpClient
                    doc
                end
             when /json$/
-               JSON.parse(response.body)
+                # Ruby JSON doesn't like bare values in JSON, we'll try to wrap these as
+                # one-element array
+                bodytext = response.body
+                bodytext = '[' + bodytext + ']' unless ['{', '['].include? response.body[0].chr
+               JSON.parse(bodytext)
             else
                response.body
             end
@@ -226,10 +460,12 @@ class NOMS::HttpClient
                         else
                           Hash.new
                         end
-            return structure['message'] if structure.has_key? 'message'
-            body_text
+            ['message', 'error', 'error_message'].each do |key|
+                return structure[key].to_s if structure.has_key? key
+            end
+            body_text.to_s
         rescue
-            body_text
+            body_text.to_s
         end
     end
 

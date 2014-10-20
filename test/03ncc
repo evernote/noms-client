@@ -1,14 +1,44 @@
 #!/usr/bin/env rspec
 
 require 'ncc/client'
+require 'spec_helper'
+
+NCC::Client.mock!
+
+$debug = ENV['TEST_DEBUG'].length > 0 ?
+(ENV['TEST_DEBUG'].to_i == 0 ? 2 : ENV['TEST_DEBUG'].to_i) : 0
+$server = 'ncc-api'
+$api = '/ncc_api/v2'
+$opt = { 'ncc' => { 'url' => "http://#{$server}#{$api}"}, 'debug' => $debug }
 
 describe NCC::Client do
 
     context "initializing" do
 
         it "creates an NCC::Client object" do
-            ncc = NCC::Client.new({})
+            ncc = NCC::Client.new $opt
             expect(ncc).to be_an_instance_of NCC::Client
+        end
+
+    end
+
+    describe '#clouds' do
+
+        before(:each) do
+            @ncc = NCC::Client.new $opt
+            # Necessary to exercise mock--should be abstracted?
+            @ncc.do_request :PUT => '/clouds/os0', :body => {
+                'name' => 'os0',
+                'status' => 'ok',
+                'provider' => 'openstack',
+                'service' => 'Fog::Compute::OpenStack::Mock'
+            }
+        end
+
+        it "returns a list of cloud objects" do
+            result = @ncc.clouds
+            expect(result.size).to eq(1)
+            expect(result.first['name']).to eq('os0')
         end
 
     end
