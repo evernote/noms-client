@@ -3,12 +3,12 @@
 require 'noms/cmdb'
 require 'spec_helper'
 
-# Not normal usage--but required for concatenated tests
-NOMS::CMDB.mock! nil
-
 describe NOMS::CMDB::RestMock do
 
-    before(:all) { init_test }
+    before(:all) do
+        init_test
+        NOMS::CMDB.mock! nil
+    end
 
     context 'initializing' do
 

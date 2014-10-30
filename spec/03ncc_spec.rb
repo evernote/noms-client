@@ -3,10 +3,12 @@
 require 'ncc/client'
 require 'spec_helper'
 
-NCC::Client.mock!
 
 describe NCC::Client do
-    before(:all) { init_test }
+    before(:all) do
+        init_test
+        NCC::Client.mock! nil
+    end
 
     context "initializing" do
 

@@ -3,13 +3,13 @@
 require 'noms/cmdb'
 require 'spec_helper'
 
-$datafile = 'test/data.json'
 
-NOMS::CMDB.mock! $datafile
 
 describe NOMS::CMDB::RestMock do
 
     before(:all) do
+        $datafile = 'test/data.json'
+        NOMS::CMDB.mock! $datafile
         File.unlink($datafile) if File.exist? $datafile
     end
 
