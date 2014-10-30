@@ -32,6 +32,10 @@ class NOMS::CMDB < NOMS::HttpClient
     do_request(:GET => "#{type}", :query => URI.encode(condlist.join('&')))
   end
 
+  def help(type)
+      do_request(:GET => type, :query => 'help')
+  end
+
   def key_field_of(type)
       case type
       when 'system'
@@ -69,14 +73,39 @@ class NOMS::CMDB < NOMS::HttpClient
     do_request :GET => "environments/#{env}"
   end
 
+  def create_environment(env, attrs)
+      do_request :POST => "environments", :body => attrs.merge({ :name => env })
+      environment env
+  end
+
+  def delete_environment(env)
+      do_request :DELETE => "environments/#{env}"
+  end
+
   def services(env)
     do_request :GET => "environments/#{env}/services"
   end
 
-  def service(env,service)
+  def service(env, service)
     do_request :GET => "environments/#{env}/services/#{service}"
   end
 
+  def update_service(env, service, attrs)
+      do_request :PUT => "environments/#{env}/services/#{service}",
+          :body => attrs
+  end
 
+  # CMDB API bug means use this endpoint to create
+  def create_service(env, service, attrs)
+      attrs[:name] = service
+      attrs[:environment_name] = env
+      do_request :POST => "service_instance", :body => attrs
+      do_request :PUT => "environments/#{env}/services/#{service}",
+          :body => attrs
+  end
+
+  def delete_service(env, service)
+      do_request :DELETE => "environments/#{env}/services/#{service}"
+  end
 
 end
