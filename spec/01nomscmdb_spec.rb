@@ -1,6 +1,7 @@
 #!/usr/bin/env rspec
 
 require 'noms/cmdb'
+require 'spec_helper'
 
 $opt = { "cmdb" => { "url" => "http://cmdb/cmdb_api/v1" } }
 

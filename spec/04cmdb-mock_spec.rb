@@ -5,12 +5,6 @@ require 'spec_helper'
 
 NOMS::CMDB.mock!
 
-$debug = ENV['TEST_DEBUG'].length > 0 ?
-         (ENV['TEST_DEBUG'].to_i == 0 ? 2 : ENV['TEST_DEBUG'].to_i) : 0
-$server = 'cmdb'
-$api = '/cmdb_api/v1'
-$opt = { $server => { 'url' => "http://#{$server}#{$api}" }, 'debug' => $debug }
-
 describe NOMS::CMDB::RestMock do
 
     context 'initializing' do

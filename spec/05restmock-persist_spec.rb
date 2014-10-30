@@ -7,12 +7,6 @@ $datafile = 'test/data.json'
 
 NOMS::CMDB.mock! $datafile
 
-$debug = ENV['TEST_DEBUG'].length > 0 ?
-         (ENV['TEST_DEBUG'].to_i == 0 ? 2 : ENV['TEST_DEBUG'].to_i) : 0
-$server = 'cmdb'
-$api = '/cmdb_api/v1'
-$opt = { $server => { 'url' => "http://#{$server}#{$api}" }, 'debug' => $debug }
-
 describe NOMS::CMDB::RestMock do
 
     before(:all) do

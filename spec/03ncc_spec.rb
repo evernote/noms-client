@@ -5,12 +5,6 @@ require 'spec_helper'
 
 NCC::Client.mock!
 
-$debug = ENV['TEST_DEBUG'].length > 0 ?
-(ENV['TEST_DEBUG'].to_i == 0 ? 2 : ENV['TEST_DEBUG'].to_i) : 0
-$server = 'ncc-api'
-$api = '/ncc_api/v2'
-$opt = { 'ncc' => { 'url' => "http://#{$server}#{$api}"}, 'debug' => $debug }
-
 describe NCC::Client do
 
     context "initializing" do
