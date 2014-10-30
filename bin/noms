@@ -15,13 +15,14 @@
 # limitations under the License.
 # */
 
-$LOAD_PATH.unshift '/usr/local/lib'
+require 'rubygems'
 require 'optconfig'
 require 'csv'
+require 'noms/client'
 require 'ncc/client'
 require 'noms/cmdb'
 
-$VERSION = '__VERSION__'
+$VERSION = NOMS::Client::VERSION
 
 $opt = Optconfig.new('noms', {
                          'ncc=s%' => {
