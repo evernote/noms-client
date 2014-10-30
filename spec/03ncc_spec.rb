@@ -6,6 +6,7 @@ require 'spec_helper'
 NCC::Client.mock!
 
 describe NCC::Client do
+    before(:all) { init_test }
 
     context "initializing" do
 

@@ -3,9 +3,12 @@
 require 'noms/cmdb'
 require 'spec_helper'
 
-NOMS::CMDB.mock!
+# Not normal usage--but required for concatenated tests
+NOMS::CMDB.mock! nil
 
 describe NOMS::CMDB::RestMock do
+
+    before(:all) { init_test }
 
     context 'initializing' do
 
@@ -36,10 +39,10 @@ describe NOMS::CMDB::RestMock do
                     'environment_name' => 'production' }
                 expect(result).to have_key 'name'
                 expect(result['name']).to be == 'production'
-                expect(@cmdb.all_data).to have_key 'cmdb'
-                expect(@cmdb.all_data[$server]).to have_key "#{$api}/environments"
-                expect(@cmdb.all_data[$server]["#{$api}/environments"]).to be_an Array
-                expect(@cmdb.all_data[$server]["#{$api}/environments"]).to include { |x| x['name'] == 'production' }
+                expect(@cmdb.all_data).to have_key $server
+                expect(@cmdb.all_data[$server]).to have_key "#{$cmdbapi}/environments"
+                expect(@cmdb.all_data[$server]["#{$cmdbapi}/environments"]).to be_an Array
+                expect(@cmdb.all_data[$server]["#{$cmdbapi}/environments"]).to include { |x| x['name'] == 'production' }
             end
 
             it 'creates several new entries' do
@@ -52,14 +55,14 @@ describe NOMS::CMDB::RestMock do
                         'id' => env, 'name' => env, 'environment_name' => 'production'
                     }
                 end
-                envs = @cmdb.all_data[$server]["#{$api}/environments"]
+                envs = @cmdb.all_data[$server]["#{$cmdbapi}/environments"]
                 expect(envs).to have(11).items
             end
 
             it 'synthesizes an id' do
                 result = @cmdb.do_request :POST => '/environments', :body => { 'name' => 'production' }
                 expect(result).to have_key 'id'
-                expect(@cmdb.all_data[$server][$api + '/environments']).to include { |o| o['id'] = result['id'] }
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['id'] = result['id'] }
             end
 
         end
@@ -69,7 +72,7 @@ describe NOMS::CMDB::RestMock do
             it 'creates a new entry' do
                 @cmdb.do_request :PUT => '/environments/1', :body => {
                     'name' => 'production', 'environment_name' => 'production' }
-                expect(@cmdb.all_data[$server][$api + '/environments']).to include { |o| o['name'] == 'production' }
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['name'] == 'production' }
             end
 
             it 'creates several new entries' do
@@ -79,15 +82,15 @@ describe NOMS::CMDB::RestMock do
                     @cmdb.do_request :PUT => "/environments/#{100 + i}", :body => {
                         'name' => "environment-#{i}", 'environment_name' => 'production' }
                 end
-                expect(@cmdb.all_data[$server][$api + '/environments']).to have(11).items
-                expect(@cmdb.all_data[$server][$api + '/environments']).to include { |o| o['name'] == 'production' }
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to have(11).items
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['name'] == 'production' }
             end
 
             it 'infers the id' do
                 result = @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
                 expect(result).to have_key 'id'
-                expect(@cmdb.all_data[$server][$api + '/environments'][0]).to have_key 'id'
-                expect(@cmdb.all_data[$server][$api + '/environments'][0]['id']).to eq '1'
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments'][0]).to have_key 'id'
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments'][0]['id']).to eq '1'
             end
 
             it 'replaces an existing object' do
@@ -95,7 +98,7 @@ describe NOMS::CMDB::RestMock do
                     'name' => 'production', 'environment_name' => 'production' }
                 @cmdb.do_request :PUT => '/environments/1', :body => {
                     'name' => 'testing', 'note' => 'testing environment' }
-                data = @cmdb.all_data[$server][$api + '/environments']
+                data = @cmdb.all_data[$server][$cmdbapi + '/environments']
                 expect(data[0]).to have_key 'name'
                 expect(data[0]).to have_key 'id'
                 expect(data[0]).to have_key 'note'
@@ -111,7 +114,7 @@ describe NOMS::CMDB::RestMock do
                     'name' => 'production', 'environment_name' => 'production' }
                 @cmdb.do_request :PUT => '/environments/1', :body => {
                     'name' => 'testing', 'note' => 'testing environment' }
-                object = @cmdb.all_data[$server][$api + '/environments'][0]
+                object = @cmdb.all_data[$server][$cmdbapi + '/environments'][0]
                 expect(object['id']).to eq '1'
                 expect(object['name']).to eq 'testing'
                 expect(object['note']).to eq 'testing environment'
@@ -161,7 +164,7 @@ describe NOMS::CMDB::RestMock do
                 @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
                 result = @cmdb.do_request :DELETE => '/environments/1'
                 expect(result).to be true
-                expect(@cmdb.all_data[$server][$api + '/environments']).to have(0).items
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to have(0).items
             end
 
             it 'deletes an existing entry among many' do
@@ -171,7 +174,7 @@ describe NOMS::CMDB::RestMock do
                         'name' => "environment-#{i}", 'environment_name' => 'production' }
                 end
                 @cmdb.do_request :DELETE => '/environments/103'
-                data = @cmdb.all_data[$server][$api + '/environments']
+                data = @cmdb.all_data[$server][$cmdbapi + '/environments']
                 expect(data).to have(10).items
                 expect(data).not_to include { |o| o['name'] == 'environment-3' }
             end

@@ -3,9 +3,9 @@
 require 'noms/cmdb'
 require 'spec_helper'
 
-$opt = { "cmdb" => { "url" => "http://cmdb/cmdb_api/v1" } }
-
 describe NOMS::CMDB do
+
+    before(:all) { init_test }
 
     describe "#new" do
 

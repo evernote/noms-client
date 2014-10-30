@@ -16,6 +16,6 @@ task :testcmd do
 end
 
 task :clean do
-    rm_rf 'pkg'
+    rm_rf 'pkg' 'test'
 end
 

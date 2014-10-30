@@ -19,7 +19,7 @@ require 'rubygems'
 require 'optconfig'
 require 'etc'
 require 'csv'
-require 'noms/client'
+require 'noms/client/version'
 require 'ncc/client'
 require 'noms/cmdb'
 

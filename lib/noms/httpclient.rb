@@ -19,6 +19,7 @@
 require 'net/http'
 require 'net/https'
 require 'rubygems'
+require 'noms/errors'
 require 'rexml/document'
 require 'json'
 
@@ -95,6 +96,25 @@ class NOMS::HttpClient
 
     def config_key
         'httpclient'
+    end
+
+    def myconfig(key=nil)
+        unless @opt.has_key? config_key and @opt[config_key]
+            raise NOMS::Error::Config, "Configuration provided to #{self.class} doesn't have a '#{config_key}' key"
+        end
+
+        cfg = @opt[config_key]
+
+        if key
+            unless cfg.has_key? key
+                msg = "#{config_key} configuration doesn't have a '#{key}' property"
+                msg += " (#{@opt[config_key].inspect})"
+                raise NOMS::Error::Config, msg
+            end
+            cfg[key]
+        else
+            cfg
+        end
     end
 
     # Used mostly for mocking behavior
@@ -200,7 +220,7 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
 
         rel_uri = opt[method]
         dbg "relative URI is #{rel_uri}"
-        url = URI.parse(@opt[config_key]['url'])
+        url = URI.parse(myconfig 'url')
         url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
         url.query = opt[:query] if opt.has_key? :query
         dbg "url=#{url}"
@@ -262,7 +282,7 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
                     collection_path = path_components.join('/')
                     object_index = @data[url.host][collection_path].index { |obj| obj[id_field(collection_path)] == id }
                     if object_index.nil?
-                        raise "Error (#{self.class} making #{config_key} request " +
+                        raise NOMS::Error, "Error (#{self.class} making #{config_key} request " +
                             "(404): No such object id (#{id_field(collection_path)} == #{id}) in #{collection_path}"
                     else
                         @data[url.host][collection_path].delete_at object_index
@@ -270,11 +290,11 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
                     maybe_save
                     true
                 else
-                    raise "Error (#{self.class}) making #{config_key} request " +
+                    raise NOMS::Error, "Error (#{self.class}) making #{config_key} request " +
                         "(404): No objects at location or in collection #{url.path}"
                 end
             else
-                raise "Error (#{self.class}) making #{config_key} request " +
+                raise NOMS::Error, "Error (#{self.class}) making #{config_key} request " +
                     "(404): No objects on #{url.host}"
             end
 
@@ -349,7 +369,7 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
         if opt[:absolute]
           url = URI.parse(rel_uri)
         else
-          url = URI.parse(@opt[config_key]['url'])
+          url = URI.parse(myconfig 'url')
           url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
           url.query = opt[:query] if opt.has_key? :query
         end
@@ -358,9 +378,9 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
         http.use_ssl = true if url.scheme == 'https'
         if http.use_ssl?
             self.dbg("using SSL/TLS")
-            if @opt[config_key].has_key? 'verify-with-ca'
+            if myconfig.has_key? 'verify-with-ca'
                 http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-                http.ca_file = @opt[config_key]['verify-with-ca']
+                http.ca_file = myconfig['verify-with-ca']
             else
                 http.verify_mode = OpenSSL::SSL::VERIFY_NONE
             end
@@ -379,10 +399,9 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
                    end
         request = reqclass.new(url.request_uri)
         self.dbg request.to_s
-        if @opt[config_key].has_key? 'username'
-            self.dbg "will do basic authentication as #{@opt[config_key]['username']}"
-            request.basic_auth(@opt[config_key]['username'],
-                          @opt[config_key]['password'])
+        if myconfig.has_key? 'username'
+            self.dbg "will do basic authentication as #{myconfig['username']}"
+            request.basic_auth(myconfig['username'], myconfig['password'])
         else
             self.dbg "no authentication"
         end
