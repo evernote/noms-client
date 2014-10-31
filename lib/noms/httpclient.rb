@@ -90,8 +90,13 @@ class NOMS::HttpClient
     end
 
     def initialize(opt)
-        @delegate = (@@mocked ? self.class.mockery.new(self, opt) :
-            NOMS::HttpClient::Real.new(self, opt))
+        @opt = opt
+        @delegate = (@@mocked ? self.class.mockery.new(self) :
+            NOMS::HttpClient::Real.new(self))
+    end
+
+    def opt
+        @opt
     end
 
     def handle_mock(method, url, opt)
@@ -168,10 +173,10 @@ end
 
 class NOMS::HttpClient::RestMock < NOMS::HttpClient
 
-    def initialize(delegator, opt)
+    def initialize(delegator)
         @delegator = delegator
         @data = { }
-        @opt = opt
+        @opt = @delegator.opt
         @opt['return-hash'] = true unless @opt.has_key? 'return-hash'
         self.dbg "Initialized with options: #{opt.inspect}"
     end
@@ -228,6 +233,7 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
         url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
         url.query = opt[:query] if opt.has_key? :query
         dbg "url=#{url}"
+
 
         handled = handle_mock(method, url, opt)
         return handled if handled
@@ -323,17 +329,17 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
                     dbg "data: #{@data[url.host][collection_path].inspect}"
                     object = @data[url.host][collection_path].find { |obj| obj[id_field(collection_path)] == id }
                     if object.nil?
-                        raise "Error (#{self.class} making #{config_key} request " +
+                        raise NOMS::Error, "Error (#{self.class} making #{config_key} request " +
                             "(404): No such object id (#{id_field(collection_path)} == #{id}) in #{collection_path}"
                     end
                     dbg "   found #{object.inspect}"
                     object
                 else
-                    raise "Error (#{self.class}) making #{config_key} request " +
+                    raise NOMS::Error, "Error (#{self.class}) making #{config_key} request " +
                         "(404): No objects at location or in collection #{url.path}"
                 end
             else
-                raise "Error (#{self.class}) making #{config_key} request " +
+                raise NOMS::Error, "Error (#{self.class}) making #{config_key} request " +
                     "(404): No objects on #{url.host}"
             end
         end
@@ -343,9 +349,9 @@ end
 
 class NOMS::HttpClient::Real < NOMS::HttpClient
 
-    def initialize(delegator, opt)
+    def initialize(delegator)
         @delegator = delegator
-        @opt = opt
+        @opt = @delegator.opt
         @opt['return-hash'] = true unless @opt.has_key? 'return-hash'
         self.dbg "Initialized with options: #{opt.inspect}"
     end

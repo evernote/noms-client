@@ -58,7 +58,7 @@ class NOMS::CMDB < NOMS::HttpClient
   end
 
   def get_or_assign_system_name(serial)
-      do_request :GET => "pcmsystemname/#{serial}"
+      do_request(:GET => "pcmsystemname/#{serial}")
   end
 
   def update(type, obj, key=nil)
