@@ -2,12 +2,13 @@
 
 require 'noms/cmdb'
 require 'spec_helper'
-
+require 'fileutils'
 
 
 describe NOMS::CMDB::RestMock do
 
     before(:all) do
+        FileUtils.mkdir 'test' unless Dir.exists? 'test'
         $datafile = 'test/data.json'
         NOMS::CMDB.mock! $datafile
         File.unlink($datafile) if File.exist? $datafile
@@ -35,7 +36,10 @@ describe NOMS::CMDB::RestMock do
         end
 
         after(:all) do
-            File.unlink($datafile) unless $opt['debug'] > 0
+            unless $opt['debug'] > 0
+                File.unlink $datafile
+                FileUtils.rmdir 'test'
+            end
         end
 
         context :PUT do
@@ -69,7 +73,7 @@ describe NOMS::CMDB::RestMock do
             it 'deletes an existing entry' do
                 result = @cmdb.do_request :DELETE => '/environments/production'
                 expect(result).to be true
-                expect(@cmdb.all_data[$server][$api + '/environments']).to have(0).items
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to have(0).items
             end
 
         end

@@ -3,5 +3,6 @@
   more clear in documentation
 * shortcut options for common use cases (like
   --short for tighter output without column headings)
-* Mocking framework for httpclient with hooks for
-  individual clients
+* Complex requests for NCC API
+* Factor almost all of CLI into interface library (in particular,
+  waitfor)
