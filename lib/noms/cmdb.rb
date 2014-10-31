@@ -24,6 +24,10 @@ end
 
 class NOMS::CMDB < NOMS::HttpClient
 
+    def self.mockery
+        NOMS::CMDB::Mock
+    end
+
   def config_key
     'cmdb'
   end
@@ -107,5 +111,26 @@ class NOMS::CMDB < NOMS::HttpClient
   def delete_service(env, service)
       do_request :DELETE => "environments/#{env}/services/#{service}"
   end
+
+end
+
+class NOMS::CMDB::Mock < NOMS::HttpClient::RestMock
+
+    @@machine_id = 0
+
+    def handle_mock(method, uri, opt)
+        if m = Regexp.new('/pcmsystemname/([^/]+)').match(uri.path)
+            serial = m[1]
+            @@machine_id += 1
+            name = "m-%03d.mock" % @@machine_id
+            do_request :PUT => "system/#{name}",
+                       :body => {
+                           'serial' => serial,
+                           'fqdn' => name
+                       }
+        else
+            false
+        end
+    end
 
 end

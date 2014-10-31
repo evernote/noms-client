@@ -94,6 +94,10 @@ class NOMS::HttpClient
             NOMS::HttpClient::Real.new(self, opt))
     end
 
+    def handle_mock(method, url, opt)
+        false
+    end
+
     def config_key
         'httpclient'
     end
@@ -224,6 +228,9 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
         url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
         url.query = opt[:query] if opt.has_key? :query
         dbg "url=#{url}"
+
+        handled = handle_mock(method, url, opt)
+        return handled if handled
 
         # We're not mocking absolute URLs specifically
         case method

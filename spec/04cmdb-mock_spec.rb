@@ -196,4 +196,19 @@ describe NOMS::CMDB::RestMock do
 
     end
 
+    describe "#get_or_assign_system_name" do
+
+        before(:each) do
+            @cmdb = NOMS::CMDB.new $opt
+        end
+
+        it 'creates an entry with a new system name' do
+            response = @cmdb.get_or_assign_system_name('MCN0021')
+            expect(response).to have_key 'fqdn'
+            expect(response['fqdn']).to include 'm-0'
+            expect(response['serial']).to eq 'MCN0021'
+        end
+
+    end
+
 end
