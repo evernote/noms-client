@@ -234,7 +234,6 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
         url.query = opt[:query] if opt.has_key? :query
         dbg "url=#{url}"
 
-
         handled = handle_mock(method, url, opt)
         return handled if handled
 
@@ -388,6 +387,7 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
         end
         self.dbg("#{method.inspect} => #{url.to_s}")
         http = Net::HTTP.new(url.host, url.port)
+        http.read_timeout = myconfig.has_key?('timeout') ? myconfig['timeout'] : 120
         http.use_ssl = true if url.scheme == 'https'
         if http.use_ssl?
             self.dbg("using SSL/TLS")

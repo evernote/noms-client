@@ -24,6 +24,7 @@ require 'ncc/client'
 require 'noms/cmdb'
 
 $VERSION = NOMS::Client::VERSION
+$me = 'noms'
 
 $opt = Optconfig.new('noms', {
                          'ncc=s%' => {
@@ -40,6 +41,7 @@ $opt = Optconfig.new('noms', {
                          'waitfor-interval=i' => 5,
                          'timeout=i' => 600,
                          'default-environment' => 'production',
+                         'default-cloud' => 'ec2',
                          'format-field=s%' => {
                              'svcinst' => {
                                  'fields' => [
@@ -112,6 +114,9 @@ if $opt['names']
     $opt['header'] = false
     $opt['feedback'] = false
 end
+
+$opt['cmdb']['timeout'] ||= $opt['timeout']
+$opt['ncc']['timeout'] ||= $opt['timeout']
 
 $cmdb = NOMS::CMDB.new($opt)
 $ncc = NCC::Client.new($opt)
@@ -460,13 +465,17 @@ def env(args)
     end
 end
 
-def parse_svcinst(s)
-    environment_name, service_name = s.split('.')
-    if service_name.nil?
-        service_name = environment_name
-        environment_name = $opt['default-environment']
+def parse_qualified_name(s, default_qualifier)
+    qualifier, name = s.split('.', 2)
+    if name.nil?
+        name = qualifier
+        qualifier = default_qualifier
     end
-    return environment_name, service_name
+    return qualifier, name
+end
+
+def parse_svcinst(s)
+    parse_qualified_name(s, $opt['default-environment'])
 end
 
 def svcinst(args)
@@ -529,45 +538,68 @@ def dispatch_command(argv)
     end
 end
 
+def parse_instance(s)
+    parse_qualified_name(s, $opt['default-cloud'])
+end
+
+def is_name(n)
+    true if /\./.match n
+end
 
 def instance(args)
     $opt['fields'] = ['name'] if $opt['names']
     cmd = args.shift
     case cmd
-    when 'list'
+    when 'list', 'ls'
         if args.length < 1
-            $stderr.puts "Need to specify cloud to list instances (noms describe clouds)"
-            Process.exit(1)
+            args.unshift $opt['default-cloud']
         end
         results = $ncc.list *args
         formatted_output(results, 'instance')
     when 'info', 'show'
-        cloud = args.shift
-        id = args.shift
-        record_formatted_output $ncc.instance cloud, id
+        if args.length == 2
+            cloud, id = *args
+        elsif args.length == 1
+            cloud, id = parse_instance(args.first)
+        else
+            fatal "Usage: noms instance show [cloud.]instance"
+        end
+        if is_name(id)
+            record_formatted_output $ncc.find_by_name cloud, id
+        else
+            record_formatted_output $ncc.instance cloud, id
+        end
     when 'add'
-        cloud = args.shift
+        instanceopt, argv = extractkvs args
+        if argv.length == 0
+            cloud = $opt['default-cloud']
+        elsif argv.length == 1
+            cloud = argv.first
+        else
+            fatal "Usage: noms instance add [cloud] [param=value [...]]"
+        end
         attrs = { :username => get_username, :size => 'm1.small' }
-        attrs.update(args.empty? ? { } : parsekvs(args))
+        attrs.update(instanceopt.empty? ? { } : instanceopt)
         dbg attrs.inspect
         inst = $ncc.create(cloud, attrs)
         record_formatted_output(inst) unless inst.nil?
-   when 'remove'
-        cloud = args.shift
-        name = args.shift
-        fatal("No name to remove") if name.nil?
-        attrs = { }
-        if /=/.match(name)
-            attrs = parsekvs(args.unshift(name))
-        elsif /\./.match(name)
-          attrs = { :name => name }
-        elsif /-/.match(name)
-          attrs = { :id => name }
+    when 'remove', 'rm'
+        if args.length == 2
+            cloud, id = *args
+        elsif args.length == 1
+            cloud, id = parse_instance(args.first)
+        else
+            fatal "Usage: noms instance remove [cloud.]instance"
         end
-      dbg attrs.inspect
-      $ncc.delete(cloud, attrs)
+        fatal("No id to remove") if id.nil?
+        if is_name(id)
+            attrs = { :name => id }
+        else
+            attrs = { :id => id }
+        end
+        $ncc.delete(cloud, attrs)
    else
-      $stderr.puts "Unknown instance command #{cmd}"
+        $stderr.puts "Unknown instance command #{cmd}"
         Process.exit(3)
    end
 end

@@ -65,12 +65,11 @@ class NCC::Client < NOMS::HttpClient
     end
 
     def delete(cloud, attrs)
-        # TODO: find by name
         if attrs.has_key? :id
             do_request :DELETE => "clouds/#{cloud}/instances/#{attrs[:id]}"
         elsif attrs.has_key? :name
             # For now I have to do this--not optimal, should be in NCC-API
-            instobj = (list cloud).find { |i| i['name'] == attrs[:name] }
+            instobj = find_by_name(cloud, attrs[:name])
             if instobj
                 do_request :DELETE => "clouds/#{cloud}/instances/#{instobj['id']}"
             else
@@ -79,6 +78,10 @@ class NCC::Client < NOMS::HttpClient
         else
             raise "Need to delete instance by name or id"
         end
+    end
+
+    def find_by_name(cloud, name)
+        instobj = (list cloud).find { |i| i['name'] == name }
     end
 
     def create(cloud, attrs)
