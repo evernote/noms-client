@@ -56,4 +56,29 @@ describe NCC::Client do
         end
     end
 
+    describe '#console' do
+        before(:each) do
+            @ncc = NCC::Client.new $opt
+            @ncc.do_request :PUT => 'clouds/os0/instances/1', :body => {
+                'name' => 'testinst1.local',
+                'id' => '1',
+                'role' => [ ],
+                'status' => 'active',
+                'size' => 'm1.small',
+                'image' => 'deb6',
+                'host' => 'ostack01.local',
+                'ip_address' => '127.0.0.1'
+            }
+            @ncc.do_request :PUT => 'clouds/os0/instances/1/console', :body => {
+                'url' => 'vnc://ostack01:5959'
+            }
+        end
+
+        it "returns a console URL" do
+            console = @ncc.console('os0', '1')
+            expect(console).to have_key 'url'
+            expect(console['url']).to eq 'vnc://ostack01:5959'
+        end
+    end
+
 end

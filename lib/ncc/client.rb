@@ -97,4 +97,8 @@ class NCC::Client < NOMS::HttpClient
         do_request :GET => "clouds/#{cloud}/instances/#{id}"
     end
 
+    def console(cloud, id)
+        do_request :GET => "clouds/#{cloud}/instances/#{id}/console"
+    end
+
 end
