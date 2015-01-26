@@ -33,6 +33,10 @@ class NCC::Client < NOMS::HttpClient
         true
     end
 
+    def info
+        do_request :GET => ''
+    end
+
     def list(cloud=nil)
         if cloud.nil?
             clouds = do_request "clouds"

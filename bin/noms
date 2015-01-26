@@ -276,6 +276,8 @@ def desc(args)
    when 'clouds'
        generic_describe Hash[$ncc.clouds.map { |e| [e['name'],
                                      e['provider']] }]
+   when 'ncc'
+       generic_describe $ncc.info
    when 'systems', 'cmdb'
        help = $cmdb.help 'system'
        puts help.inspect

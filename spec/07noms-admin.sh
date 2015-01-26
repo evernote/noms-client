@@ -46,6 +46,7 @@ EOF
       "operatingsystem": "Debian"
     }
   ]
+  }
 }
 EOF
 }
