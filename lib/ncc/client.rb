@@ -52,14 +52,18 @@ class NCC::Client < NOMS::HttpClient
         do_request :GET => "clouds/#{cloud}/instances/#{id}"
     end
 
-    def clouds
-        cloudnames = do_request :GET => "clouds"
-        cloudnames.map do |cloudname|
-            if cloudname.respond_to? :keys
-                cloudname
-            else
-                do_request :GET => "clouds/#{cloudname}"
+    def clouds(cloudname=nil)
+        unless cloudname
+            cloudnames = do_request :GET => "clouds"
+            cloudnames.map do |cloudname|
+                if cloudname.respond_to? :keys
+                    cloudname
+                else
+                    do_request :GET => "clouds/#{cloudname}"
+                end
             end
+        else
+            do_request :GET => "clouds/#{cloudname}"
         end
     end
 

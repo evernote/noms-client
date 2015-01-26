@@ -16,6 +16,11 @@ EOF
   "/ncc_api/v2": {
     "version": "0.6.9"
   },
+  "/ncc_api/v2/clouds": ["os0", "aws"],
+  "/ncc_api/v2/clouds/os0": {
+     "provider": "openstack",
+     "status": "ok"
+  },
   "/ncc_api/v2/sizes": [
     {
       "name": "m1.large",
@@ -58,3 +63,8 @@ teardown() {
 @test "noms-mock server-info" {
     noms --config=test/etc/noms.conf --mock=test/data.json describe ncc | grep "version: 0.6.9"
 }
+
+@test "noms-mock describe os0" {
+    noms --config=test/etc/noms.conf --mock=test/data.json describe cloud os0 | grep 'provider: openstack'
+}
+

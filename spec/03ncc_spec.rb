@@ -39,6 +39,12 @@ describe NCC::Client do
             expect(result.first['name']).to eq('os0')
         end
 
+        it "returns a specific cloud object" do
+            result = @ncc.clouds('os0')
+            expect(result).to have_key 'provider'
+            expect(result['provider']).to eq 'openstack'
+        end
+
     end
 
     describe '#info' do
