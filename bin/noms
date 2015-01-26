@@ -470,7 +470,7 @@ def env(args)
 end
 
 def parse_qualified_name(s, default_qualifier)
-    qualifier, name = s.split('.', 2)
+    qualifier, name = s.split('/', 2)
     if name.nil?
         name = qualifier
         qualifier = default_qualifier
@@ -566,13 +566,18 @@ def instance(args)
         elsif args.length == 1
             cloud, id = parse_instance(args.first)
         else
-            fatal "Usage: noms instance show [cloud.]instance"
+            fatal "Usage: noms instance show [cloud/]instance"
         end
         if is_name(id)
-            record_formatted_output $ncc.find_by_name cloud, id
+            instance = $ncc.find_by_name cloud, id
         else
-            record_formatted_output $ncc.instance cloud, id
+            instance =  $ncc.instance cloud, id
         end
+        if $opt['fields'].include? 'console'
+            console = $ncc.console cloud, id
+            instance['console'] = console['url'] if (console and console.has_key? 'url')
+        end
+        record_formatted_output instance
     when 'add'
         instanceopt, argv = extractkvs args
         if argv.length == 0
@@ -623,10 +628,10 @@ noms - CLI for New Operations Management Stack
          set fqdn field=value [field=value [...]] - Update system attributes
          show fqdn - Show fields for one system
       instance subcommand - Operate on NOMS instances
-         add cloud [attribute=value [...]] - Add a new NOMS instance
-         list cloud - List NOMS instances (in cloud)
-         show cloud instanceid
-         remove instanceid - Terminate a cloud instanc
+         add [cloud] [attribute=value [...]] - Add a new NOMS instance
+         list [cloud] - List NOMS instances (in cloud)
+         show [cloud/]instanceid
+         remove [cloud/]instanceid - Terminate a cloud instanc
       environment subcommand - Operate on NOMS environment
          add name [environment_name=value] [note=value]
              - Add a new environment
@@ -635,11 +640,11 @@ noms - CLI for New Operations Management Stack
          show name - Show details on <environment>
          remove name
       svcinst subcommand - Operate on NOMS service instances
-         add [environment.]service
-         set [environment.]service property=value
-         show [environment.]service
+         add [environment/]service
+         set [environment/]service property=value
+         show [environment/]service
          list [environment]
-         remove [environment.]service
+         remove [environment/]service
       options as described in Optconfig
 
 =head1 DESCRIPTION

@@ -21,6 +21,18 @@ EOF
      "provider": "openstack",
      "status": "ok"
   },
+  "/ncc_api/v2/clouds/os0/instances/1": {
+     "name": "testist1.local",
+     "id": "1",
+     "status": "active",
+     "role": [ ],
+     "size": "m1.small",
+     "image": "deb6",
+     "host": "ostack01.local"
+  },
+  "/ncc_api/v2/clouds/os0/instances/1/console": {
+     "url": "vnc://ostack01.local:5959"
+  },
   "/ncc_api/v2/sizes": [
     {
       "name": "m1.large",
@@ -60,11 +72,20 @@ teardown() {
     rm -rf test/etc
 }
 
-@test "noms-mock server-info" {
+@test "noms-admin server-info" {
     noms --config=test/etc/noms.conf --mock=test/data.json describe ncc | grep "version: 0.6.9"
 }
 
-@test "noms-mock describe os0" {
+@test "noms-admin describe cloud os0" {
     noms --config=test/etc/noms.conf --mock=test/data.json describe cloud os0 | grep 'provider: openstack'
+}
+
+@test "noms-admin get console (negative)" {
+    noms --config=test/etc/noms.conf --mock=test/data.json instance show os0 1 | grep -v 'console_url'
+}
+
+@test "noms-admin get console (positive)" {
+    noms --config=test/etc/noms.conf --mock=test/data.json --fields fqdn,console instance show os0 1 |\
+        grep 'console: vnc://ostack01.local:5959'
 }
 
