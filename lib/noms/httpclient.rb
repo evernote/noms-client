@@ -230,7 +230,9 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
         rel_uri = opt[method]
         dbg "relative URI is #{rel_uri}"
         url = URI.parse(myconfig 'url')
-        url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
+        unless opt[method] == ''
+            url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
+        end
         url.query = opt[:query] if opt.has_key? :query
         dbg "url=#{url}"
 
@@ -382,7 +384,9 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
           url = URI.parse(rel_uri)
         else
           url = URI.parse(myconfig 'url')
-          url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
+          unless opt[method] == ''
+            url.path = rtrim(url.path) + '/' + ltrim(rel_uri) unless opt[:absolute]
+          end
           url.query = opt[:query] if opt.has_key? :query
         end
         self.dbg("#{method.inspect} => #{url.to_s}")

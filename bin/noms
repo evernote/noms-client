@@ -15,6 +15,164 @@
 # limitations under the License.
 # */
 
+# = NAME
+#
+# noms - CLI for New Operations Management Stack
+#
+# = SYNOPSIS
+#
+#    noms command [options] [arguments]
+#       cmdb subcommand
+#          query [condition [...]]   - Query for systems
+#          set fqdn field=value [field=value [...]] -
+#                                      Update system attributes
+#          show fqdn                 - Show fields for one system
+#       waitfor expr cmdb query      - Waitfor CMDB query to have
+#                                      specified number of results
+#       instance subcommand          - Operate on NOMS instances
+#          add [cloud] [attribute=value [...]] -
+#                                      Add a new NOMS instance
+#          list [cloud]              - List NOMS instances (in cloud)
+#          show [cloud/]instanceid
+#          show [cloud/]name         - Show details of cloud instance
+#                                      (can include --fields console)
+#          remove [cloud/]instanceid
+#          remove [cloud/]name       - Terminate a cloud instance
+#       environment subcommand - Operate on NOMS environment
+#          add name [environment_name=value] [note=value] -
+#                                      Add a new environment
+#          list                      - List environments
+#          tree                      - Show environments in a tree
+#          show name                 - Show details on <environment>
+#          remove name               - Remove environment
+#       svcinst subcommand           - Operate on NOMS service instances
+#          add [environment/]service - Add service instance
+#          set [environment/]service property=value -
+#                                      Set property on service instance
+#          show [environment/]service- Show details on service instance
+#          list [environment]        - List service instances for environment
+#          remove [environment/]service -
+#                                      Remove a service instance from an
+#                                      environment
+#       describe item                - Describe meta-data for NOMS
+#          clouds                    - List clouds
+#          cloud name                - Describe named cloud
+#          ncc                       - Describe NCC API endpoint
+#          cmdb                      - Describe system fields
+#    Options:
+#       --names                      - Just print entity names, equivalent to
+#                                      --fields name --noheader --nofeedback --nolabel
+#       --fields field[,field[,...]]
+#       --format {text | json | csv} - Print output in specified format
+#       --timeout                    - Timeout for network operations (especially
+#                                      relevant for waitfor)
+#       --noheader
+#       --nofeedback
+#       --nolabel
+#       options as described in Optconfig
+#
+#
+# = DESCRIPTION
+#
+# The +noms+ command is used to set up and manage virtual and physical environments.
+#
+# == Commands
+#
+# * describe
+#
+# The +describe+ command (+desc+ is a synonym) is used to describe different
+# things about the NOMS environment.
+#
+# ** commands
+#
+# List the different commands available
+#
+# * instance
+#
+# The +instance+ command is used for operating on individual instances in the
+# NOMS environment. Use it by invoking subcommands to add, remove and list
+# instances.
+#
+# ** list
+#
+# List instances. Use the *--verbose* option to list more fields
+#
+# Example: +noms instance list us-east-1+
+#
+# ** show
+#
+# Show information about the named instance.
+#
+# Example: +noms instance show us-east-1/webserver1.ops-lab.net+
+#
+# * cmdb
+#
+# Perform operations on the CMDB.
+#
+# ** show
+#
+# Show field values for the specified system (identified by fqdn).
+#
+# Example: +noms cmdb show webserver1.ops-lab.net+
+#
+# ** query
+#
+# Perform a query and display tabular results (see the *--fields*
+# and *--format* option).
+#
+# Example: +noms cmdb query status=allocated data_center_code=XDC1 'tags!~backup'+
+#
+# ** set
+#
+# Set field values for the system in the CMDB.
+#
+# Example: +noms cmdb set webserver1.ops-lab.net status=decommissioned+
+#
+# * waitfor
+#
+# Wait for a CMDB query to have a specified number of result rows. Possible value of
+# the result row count expression is a number signifying a number of rows to exactly match,
+# or '>n' indicating that more than _n_ rows must match. The following syntax is 'cmdb query
+# field-expression', just as with the 'cmdb query' command.
+#
+# Example: +noms waitfor >1 cmdb query status=idle roles=xenserver+
+#
+# == Options
+#
+# * --names
+#
+# Just print the names of the entries. (Synonymous with --noheader --nofeedback --fields=fqdn
+# or --fields=name)
+#
+# Example: +noms cmdb query status=idle --names+
+#
+# Example: +noms instance list --names+
+#
+# * --fields
+#
+# Use the specified comma-separated list of fields for printing results.
+#
+# Example: +noms cmdb query 'status!=decommissioned' --fields=fqdn,operatingsystem,status+
+#
+# * --format
+#
+# Specify the output format. One of: text, csv or json (default is 'text').
+#
+# Example: +noms cmdb show webserver1.ops-lab.net --format=json+
+#
+# * --noheader
+#
+# Don't print column headings (in text or CSV output).
+#
+# * --nofeedback
+#
+# Don't print object counts.
+#
+# = AUTHOR
+#
+# Jeremy Brinkley, <jbrinkley@evernote.com>
+#
+
 require 'rubygems'
 require 'optconfig'
 require 'etc'
@@ -276,6 +434,10 @@ def desc(args)
    when 'clouds'
        generic_describe Hash[$ncc.clouds.map { |e| [e['name'],
                                      e['provider']] }]
+   when 'cloud'
+       generic_describe $ncc.clouds args.first
+   when 'ncc'
+       generic_describe $ncc.info
    when 'systems', 'cmdb'
        help = $cmdb.help 'system'
        puts help.inspect
@@ -285,10 +447,9 @@ def desc(args)
        generic_describe ({
                              'describe' => 'describe resources',
                              'clouds' => 'describe available clouds',
-                             'instances' => 'describe instances',
-                             'systems|cmdb' => 'describe CMDB entries (system)',
-                             'environments' => 'describe environments',
-                             'svcinst' => 'describe CMDB service instances'
+                             'cloud' => 'describe cloud',
+                             'ncc' => 'describe NCC API',
+                             'systems|cmdb' => 'describe CMDB entries (system)'
                          })
    else
        $stderr.puts "Can't describe '#{what}'"
@@ -466,7 +627,7 @@ def env(args)
 end
 
 def parse_qualified_name(s, default_qualifier)
-    qualifier, name = s.split('.', 2)
+    qualifier, name = s.split('/', 2)
     if name.nil?
         name = qualifier
         qualifier = default_qualifier
@@ -562,13 +723,18 @@ def instance(args)
         elsif args.length == 1
             cloud, id = parse_instance(args.first)
         else
-            fatal "Usage: noms instance show [cloud.]instance"
+            fatal "Usage: noms instance show [cloud/]instance"
         end
         if is_name(id)
-            record_formatted_output $ncc.find_by_name cloud, id
+            instance = $ncc.find_by_name cloud, id
         else
-            record_formatted_output $ncc.instance cloud, id
+            instance =  $ncc.instance cloud, id
         end
+        if $opt['fields'].include? 'console'
+            console = $ncc.console cloud, instance['id']
+            instance['console'] = console['url'] if (console and console.has_key? 'url')
+        end
+        record_formatted_output instance
     when 'add'
         instanceopt, argv = extractkvs args
         if argv.length == 0
@@ -606,146 +772,3 @@ end
 
 dispatch_command ARGV
 
-$manpage = <<'EOF'
-=head1 NAME
-
-noms - CLI for New Operations Management Stack
-
-=head1 SYNOPSIS
-
-   noms command [options] [arguments]
-      cmdb subcommand
-         query [condition [...]] - Query for systems
-         set fqdn field=value [field=value [...]] - Update system attributes
-         show fqdn - Show fields for one system
-      instance subcommand - Operate on NOMS instances
-         add cloud [attribute=value [...]] - Add a new NOMS instance
-         list cloud - List NOMS instances (in cloud)
-         show cloud instanceid
-         remove instanceid - Terminate a cloud instanc
-      environment subcommand - Operate on NOMS environment
-         add name [environment_name=value] [note=value]
-             - Add a new environment
-         list - List environments
-         tree - Show environments in a tree
-         show name - Show details on <environment>
-         remove name
-      svcinst subcommand - Operate on NOMS service instances
-         add [environment.]service
-         set [environment.]service property=value
-         show [environment.]service
-         list [environment]
-         remove [environment.]service
-      options as described in Optconfig
-
-=head1 DESCRIPTION
-
-The C<noms> command is used to set up and manage virtual and physical environments.
-
-=head2 Commands
-
-=over 4
-
-=item describe
-
-The C<describe> command (C<desc> is a synonym) is used to describe different
-things about the NOMS environment.
-
-=over 8
-
-=item commands
-
-List the different commands available
-
-=back
-
-=over 4
-
-=item instance
-
-The C<instance> command is used for operating on individual instances in the
-NOMS environment. Use it by invoking subcommands to add, remove and list
-instances.
-
-=over 8
-
-=item list
-
-List instances. Use the B<--verbose> option to list more fields
-
-Example: C<noms instance list us-east-1>
-
-=item show
-
-Show information about the named instance.
-
-Example: C<noms instance show us-east-1 webserver1.ops-lab.net>
-
-=over 4
-
-=item cmdb
-
-Perform operations on the CMDB.
-
-=item show
-
-Show field values for the specified system (identified by fqdn).
-
-Example: C<noms cmdb show webserver1.ops-lab.net>
-
-=item query
-
-Perform a query and display tabular results (see the --fields
-and --format option).
-
-Example: C<noms cmdb query status=allocated data_center_code=XDC1 'tags!~backup'>
-
-=item set
-
-Set field values for the system in the CMDB.
-
-Example: C<noms cmdb set webserver1.ops-lab.net status=decommissioned>
-
-=head2 Options
-
-=over 4
-
-=items --names
-
-Just print the names of the entries. (Synonymous with --noheader --nofeedback --fields=fqdn
-or --fields=name)
-
-Example: C<noms cmdb query status=idle --names>
-
-Example: C<noms instance list --names>
-
-=over 4
-
-=item --fields
-
-Use the specified comma-separated list of fields for printing results.
-
-Example: C<noms cmdb query 'status!=decommissioned' --fields=fqdn,operatingsystem,status>
-
-=item --format
-
-Specify the output format. One of: text, csv or json (default is 'text').
-
-Example: C<noms cmdb show webserver1.ops-lab.net --format=json> 
-
-=item --noheader
-
-Don't print column headings (in text or CSV output).
-
-=item --nofeedback
-
-Don't print object counts.
-
-=back
-
-=head1 AUTHOR
-
-Jeremy Brinkley, E<lt>jbrinkley@evernote.comE<gt>
-
-=cut
-EOF
