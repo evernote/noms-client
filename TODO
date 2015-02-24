@@ -6,3 +6,7 @@
 * Complex requests for NCC API
 * Factor almost all of CLI into interface library (in particular,
   waitfor)
+
+* need a way for the docs/help/usage to be additive from library. 
+  i.e. library has new functions, docs/help/usage for how to use 
+  them, should be displayed in noms --help
