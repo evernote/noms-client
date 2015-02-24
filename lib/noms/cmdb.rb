@@ -100,6 +100,7 @@ class NOMS::CMDB < NOMS::HttpClient
   end
 
   # CMDB API bug means use this endpoint to create
+  # TODO needs update as this bug is no longer present
   def create_service(env, service, attrs)
       attrs[:name] = service
       attrs[:environment_name] = env
