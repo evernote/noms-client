@@ -180,6 +180,7 @@ require 'csv'
 require 'noms/client/version'
 require 'ncc/client'
 require 'noms/cmdb'
+require 'noms/nagui'
 
 $VERSION = NOMS::Client::VERSION
 $me = 'noms'
@@ -189,6 +190,8 @@ $opt = Optconfig.new('noms', {
                              'url' => 'http://noms/ncc_api/v2' },
                          'cmdb=s%' => {
                              'url' => 'http://cmdb/cmdb_api/v1' },
+                         'nagui=s%' => {
+                             'url' => 'http://nagios/nagui/nagios_live.cgi' },
                          'fields=s' => '',
                          'mock=s' => nil,
                          'format=s' => 'text',
@@ -201,6 +204,16 @@ $opt = Optconfig.new('noms', {
                          'default-environment' => 'production',
                          'default-cloud' => 'ec2',
                          'format-field=s%' => {
+                            'host' => {
+                                'fields' => [
+                                    'name','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'name' => 36,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                            },
                              'svcinst' => {
                                  'fields' => [
                                      'name', 'type', 'note'
@@ -255,6 +268,7 @@ $opt = Optconfig.new('noms', {
 if $opt['mock']
     NCC::Client.mock! $opt['mock']
     NOMS::CMDB.mock! $opt['mock']
+    NOMS::Nagui.mock! $opt['mock']
 end
 
 case $opt['format']
@@ -278,6 +292,7 @@ $opt['ncc']['timeout'] ||= $opt['timeout']
 
 $cmdb = NOMS::CMDB.new($opt)
 $ncc = NCC::Client.new($opt)
+$nagui = NOMS::Nagui.new($opt)
 
 def parse_format(fields, type)
     dbg "Specified fields: #{fields.inspect}"
@@ -464,18 +479,72 @@ def cmdb_show(args)
     fqdn = args.shift
     system = $cmdb.query('system', 'fqdn=' + fqdn).first
     record = if ! args.empty?
-                 system.keys.inject({}) do |h, k|
+        system.keys.inject({}) do |h, k|
             if args.include? k
                 h.merge({k => system[k]})
             else
                 h
             end
         end
-             else
-                 system
-             end
+    else
+        system
+    end
     record
 end
+
+def nagui_query(args)
+    type = args.shift
+        
+end
+
+
+def nagui_show(args)
+    host = args.shift
+    system = $nagui.system(host)
+    record = if ! args.empty?
+        system.keys.inject({}) do |h, k|
+            if args.include? k
+                h.merge({k => system[k]})
+            else
+                h
+            end
+        end
+    else
+        system
+    end
+    record
+end
+
+
+def nagui(args)
+    cmd = args.shift
+    opt, argv = extractkvs args
+    case cmd
+    when 'query'
+        # Note, args, not argv
+        results = nagui_query args
+        formatted_output(results, 'system')
+    when 'show'
+        record = nagui_show args
+        record_formatted_output(record, 'host')
+    else
+        $stderr.puts "Unknown nagui command '#{cmd}'"
+        Process.exit(2)
+    end
+end 
+def nagcheck(args)
+    cmd = args.shift
+    opt, argv = extractkvs args
+    case cmd
+    when 'host'
+
+    when 'service'
+
+    else
+        $stderr.puts "Unknown nagcheck command '#{cmd}'"
+        Process.exit(2)
+    end
+end       
 
 def cmdb(args)
     $opt['fields'] = ['fqdn'] if $opt['names']
@@ -690,6 +759,10 @@ def dispatch_command(argv)
         outs instance argv
     when 'waitfor'
         waitfor argv
+    when 'nagui'
+        outs nagui argv
+    when 'nagcheck'
+        outs nagcheckargv
     when nil
         $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor|...} [arg]"
         Process.exit(1)

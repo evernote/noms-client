@@ -28,13 +28,33 @@ class NOMS::Nagui < NOMS::HttpClient
           puts "DBG(#{self.class}): #{msg}"
       end
   end
-  def initialize(opt)
-      @opt = opt
-      self.dbg "Initialized with options: #{opt.inspect}"
-  end
+  # def initialize(opt)
+  #     @opt = opt
+  #     self.dbg "Initialized with options: #{opt.inspect}"
+  # end
 
   def config_key
     'nagui'
+  end
+
+  def host(hostname)
+    system(hostname)
+  end
+
+  def make_plural(str)
+    "#{str}s"
+  end
+
+
+  def make_sql(type,queries)
+    if !queries.kind_of?(Array)
+      queries=[queries]
+    end
+    lql='GET '
+  end
+
+  def query(type,queries)
+
   end
 
   def system(hostname)
@@ -45,6 +65,7 @@ class NOMS::Nagui < NOMS::HttpClient
       nil
     end
   end
+
   def check_host_online(host)
     @opt['host_up_command'] = 'check-host-alive' unless @opt.has_key?('host_up_command')
     nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{@opt['host_up_command']}")
@@ -54,4 +75,5 @@ class NOMS::Nagui < NOMS::HttpClient
       false
     end
   end
+
 end
