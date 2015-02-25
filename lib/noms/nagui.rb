@@ -28,6 +28,7 @@ class NOMS::Nagui < NOMS::HttpClient
           puts "DBG(#{self.class}): #{msg}"
       end
   end
+
   # def initialize(opt)
   #     @opt = opt
   #     self.dbg "Initialized with options: #{opt.inspect}"
@@ -37,32 +38,58 @@ class NOMS::Nagui < NOMS::HttpClient
     'nagui'
   end
 
-  def host(hostname)
-    system(hostname)
-  end
-
   def make_plural(str)
     "#{str}s"
   end
 
+  def default_query_key(type)
+    case type
+    when 'host'
+      'name'
+    when 'service'
+      'description'
+    when 'hostgroup'
+      'name'
+    end
+  end
 
-  def make_sql(type,queries)
+  def make_lql(type,queries)
     if !queries.kind_of?(Array)
       queries=[queries]
     end
-    lql='GET '
+    lql='GET ' 
+    lql << make_plural(type) 
+    queries.each do |q|
+      query = /(\w+)([!~>=<]+)(.*)/.match(q)
+      if query == nil
+        lql << "|Filter: #{default_query_key(type)} ~~ #{q}"
+      else
+        lql << "|Filter: #{query[1]} #{query[2]} #{query[3]}"
+      end
+    end
+    lql
   end
 
   def query(type,queries)
-
+    query_string = make_lql(type,queries)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
   end
 
-  def system(hostname)
+  def host(hostname)
     results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name ~~ #{hostname}"))
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
       nil
+    end
+  end
+
+  def nagcheck(host,service)
+    nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{service}")
+    if nagcheck['state'] == 0
+      true
+    else
+      false
     end
   end
 

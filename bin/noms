@@ -59,6 +59,14 @@
 #          cloud name                - Describe named cloud
 #          ncc                       - Describe NCC API endpoint
 #          cmdb                      - Describe system fields
+#       nagios subcommand
+#          show name                 - Show informatoin for named host
+#          query 
+#              service name          - Query for services
+#              host name             - Query for hosts
+#              hostgroup name        - Query for hostgroups
+#          check <host>[/<service>]  - Run service check for host (or host check) synchronously
+#
 #    Options:
 #       --names                      - Just print entity names, equivalent to
 #                                      --fields name --noheader --nofeedback --nolabel
@@ -210,6 +218,17 @@ $opt = Optconfig.new('noms', {
                                 ],
                                 'length' => {
                                     'name' => 36,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                            },
+                            'service' => {
+                                'fields' => [
+                                    'host_name','description','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'host_name' => 36,
+                                    'description' => 20,
                                     'state' => 5,
                                     'plugin_output' => 36
                                 }
@@ -492,9 +511,13 @@ def cmdb_show(args)
     record
 end
 
-def nagui_query(args)
-    type = args.shift
-        
+def nagcheck
+    $nagui.nagcheck(host,service)    
+end
+
+
+def nagui_query(type,args)
+    $nagui.query(type,args)        
 end
 
 
@@ -516,35 +539,26 @@ def nagui_show(args)
 end
 
 
-def nagui(args)
+def nagios(args)
     cmd = args.shift
     opt, argv = extractkvs args
     case cmd
     when 'query'
         # Note, args, not argv
-        results = nagui_query args
-        formatted_output(results, 'system')
+        type = args.shift
+        results = nagui_query(type,args)
+        formatted_output(results, type)
     when 'show'
-        record = nagui_show args
+        host = args.shift
+        record = $nagui.system(host)
         record_formatted_output(record, 'host')
+    when 'check'
+        output = nagcheck args
     else
-        $stderr.puts "Unknown nagui command '#{cmd}'"
+        $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)
     end
 end 
-def nagcheck(args)
-    cmd = args.shift
-    opt, argv = extractkvs args
-    case cmd
-    when 'host'
-
-    when 'service'
-
-    else
-        $stderr.puts "Unknown nagcheck command '#{cmd}'"
-        Process.exit(2)
-    end
-end       
 
 def cmdb(args)
     $opt['fields'] = ['fqdn'] if $opt['names']
@@ -755,14 +769,12 @@ def dispatch_command(argv)
         outs svcinst argv
     when 'environment', 'env'
         outs env argv
-    when 'instance'
+    when 'instance', 'inst'
         outs instance argv
     when 'waitfor'
         waitfor argv
-    when 'nagui'
-        outs nagui argv
-    when 'nagcheck'
-        outs nagcheckargv
+    when 'nagios', 'nag'
+        outs nagios argv
     when nil
         $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor|...} [arg]"
         Process.exit(1)
