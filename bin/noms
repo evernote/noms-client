@@ -213,6 +213,17 @@ $opt = Optconfig.new('noms', {
                          'default-environment' => 'production',
                          'default-cloud' => 'ec2',
                          'format-field=s%' => {
+                            'hostgroup' => {
+                                'fields' => [
+                                    'name','members','num_hosts', 'num_services'
+                                ],
+                                'length' => {
+                                    'name' => 20,
+                                    'members' => 36,
+                                    'num_hosts' => 5,
+                                    'num_services' => 5
+                                }
+                            },
                             'host' => {
                                 'fields' => [
                                     'name','state', 'plugin_output'
@@ -394,7 +405,7 @@ end
 
 def record_formatted_output(object, type='instance', fields=nil)
     fields = fmt_fields(type, fields)
-    all_fields = object.keys
+    all_fields = object.keys.sort
     fields = fields & all_fields
     fieldlist = parse_format($opt['fields'], type) || fields + (all_fields - fields)
     case $opt['format']

@@ -23,6 +23,10 @@ class NOMS
 end
 
 class NOMS::Nagui < NOMS::HttpClient
+
+  @@validtypes =['hosts','services','hostgroups','servicegroups','contacts','commands',
+    'downtimes','timeperiods','status','contactgroups']
+
   def dbg(msg)
       if @opt.has_key? 'debug' and @opt['debug'] > 2
           puts "DBG(#{self.class}): #{msg}"
@@ -71,6 +75,10 @@ class NOMS::Nagui < NOMS::HttpClient
   end
 
   def query(type,queries)
+    unless @@validtypes.include? make_plural(type)
+      puts "#{type} is not a valid type"
+      Process.exit(1)
+    end
     query_string = make_lql(type,queries)
     results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
   end
@@ -86,11 +94,6 @@ class NOMS::Nagui < NOMS::HttpClient
 
   def nagcheck(host,service)
     nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{service}")
-    if nagcheck['state'] == 0
-      true
-    else
-      false
-    end
   end
 
   def check_host_online(host)
