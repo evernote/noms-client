@@ -92,8 +92,16 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
 
-  def nagcheck(host,service)
-    nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{service}")
+  def nagcheck_host(host)
+    url = "/nagcheck/host/#{host}"
+    dbg("nagcheck url= #{url}")
+    nagcheck=do_request(:GET => url, :query => "report=true")
+  end
+
+  def nagcheck_service(host,service)
+    url = "/nagcheck/service/#{host}/#{service}"
+    dbg("nagcheck url= #{url}")
+    nagcheck=do_request(:GET => url, :query => "report=true")
   end
 
   def check_host_online(host)

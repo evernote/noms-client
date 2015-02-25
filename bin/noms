@@ -66,7 +66,7 @@
 #              service name          - Query for services
 #              host name             - Query for hosts
 #              hostgroup name        - Query for hostgroups
-#          check <host>[/<service>]  - Run service check for host (or host check) synchronously
+#          check <host> [<service>]  - Run service check for host (or host check) synchronously
 #
 #    Options:
 #       --names                      - Just print entity names, equivalent to
@@ -223,8 +223,8 @@ $opt = Optconfig.new('noms', {
                                     'num_hosts' => 5,
                                     'num_services' => 5
                                 }
-                            },
-                            'host' => {
+                             },
+                             'host' => {
                                 'fields' => [
                                     'name','state', 'plugin_output'
                                 ],
@@ -233,8 +233,20 @@ $opt = Optconfig.new('noms', {
                                     'state' => 5,
                                     'plugin_output' => 36
                                 }
-                            },
-                            'service' => {
+                             },
+                             'nagcheck' => {
+                                'fields' => [
+                                    'host_name','address','service_description','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'host_name' => 36,
+                                    'address' => 16,
+                                    'service_description' => 20,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                             },                            
+                             'service' => {
                                 'fields' => [
                                     'host_name','description','state', 'plugin_output'
                                 ],
@@ -244,7 +256,7 @@ $opt = Optconfig.new('noms', {
                                     'state' => 5,
                                     'plugin_output' => 36
                                 }
-                            },
+                             },
                              'svcinst' => {
                                  'fields' => [
                                      'name', 'type', 'note'
@@ -523,8 +535,14 @@ def cmdb_show(args)
     record
 end
 
-def nagcheck
-    $nagui.nagcheck(host,service)    
+def nagcheck(args)
+    host = args.shift
+    if args.empty?
+        $nagui.nagcheck_host(host)
+    else
+        service=args.shift
+        $nagui.nagcheck_service(host,service)    
+    end
 end
 
 
@@ -556,8 +574,8 @@ def nagios(args)
     opt, argv = extractkvs args
     case cmd
     when 'query'
-        # Note, args, not argv
         type = args.shift
+        $opt['fields'] = [$nagui.default_query_key(type)] if $opt['names']
         results = nagui_query(type,args)
         formatted_output(results, type)
     when 'detail'
@@ -585,7 +603,8 @@ def nagios(args)
         end
         formatted_output(data, 'service')
     when 'check'
-        output = nagcheck args
+        output = nagcheck(args)
+        record_formatted_output(output,'nagcheck')
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)
