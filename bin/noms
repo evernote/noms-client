@@ -60,12 +60,9 @@
 #          ncc                       - Describe NCC API endpoint
 #          cmdb                      - Describe system fields
 #       nagios subcommand
-#          show name                 - Show information for named host
-#          detail name               - Show object detail for named host
-#          query 
-#              service name          - Query for services
-#              host name             - Query for hosts
-#              hostgroup name        - Query for hostgroups
+#          show type name            - Show information for named type [hostgroup,host,service]
+#          detail host               - Show object detail for named host
+#          query type [condition [...]]   - Query for object by type [hostgroup,host,service]
 #          check <host> [<service>]  - Run service check for host (or host check) synchronously
 #
 #    Options:
@@ -215,7 +212,7 @@ $opt = Optconfig.new('noms', {
                          'format-field=s%' => {
                             'hostgroup' => {
                                 'fields' => [
-                                    'name','members','num_hosts', 'num_services'
+                                    'name','num_hosts', 'num_services'
                                 ],
                                 'length' => {
                                     'name' => 20,
@@ -545,66 +542,82 @@ def nagcheck(args)
     end
 end
 
-
-def nagui_query(type,args)
-    $nagui.query(type,args)        
-end
-
-
-def nagui_show(args)
-    host = args.shift
-    system = $nagui.system(host)
-    record = if ! args.empty?
-        system.keys.inject({}) do |h, k|
-            if args.include? k
-                h.merge({k => system[k]})
-            else
-                h
-            end
-        end
-    else
-        system
-    end
-    record
-end
-
-
 def nagios(args)
     cmd = args.shift
-    opt, argv = extractkvs args
     case cmd
     when 'query'
         type = args.shift
-        $opt['fields'] = [$nagui.default_query_key(type)] if $opt['names']
-        results = nagui_query(type,args)
-        formatted_output(results, type)
+        if $opt['names']
+            if type == 'service'
+                $opt['fields'] = ['host_name','description']
+            else
+                $opt['fields'] = [$nagui.default_query_key(type)] if $opt['names']
+            end
+        end
+        output = $nagui.query(type,args)
+        if type == 'hostgroup'
+            output.each do |item|
+                item.delete('members')
+            end
+        end
+        formatted_output(output, type)
     when 'detail'
         host = args.shift
-        record = $nagui.host(host)
-        record_formatted_output(record, 'host')
+        record_formatted_output($nagui.host(host), 'host')
     when 'show'
-        host = args.shift
-        record = $nagui.host(host)
-        data = [{ 
-            'host_name' => record['name'],
-            'description' => '',
-            'state' => record['state'],
-            'plugin_output' => record['plugin_output'] 
-        }]
-        # print records.inspect
-        # Process.exit(1)
-        record['services_with_info'].each do |svc|
-            data << {
-                'host_name' => '',
-                'description' => svc[0],
-                'state' => svc[1],
-                'plugin_output' => svc[3]
-            }
+        type = args.shift
+        key = args.shift
+        $opt['feedback'] = false
+        case type 
+        when 'host'
+            output = $nagui.host(key)
+            dbg("show host: #{output.inspect}")
+            if output != nil
+                data = [{ 
+                    'host_name' => output['name'],
+                    'description' => '',
+                    'state' => output['state'],
+                    'plugin_output' => output['plugin_output'] 
+                }]
+                output['services_with_info'].each do |svc|
+                    data << {
+                        'host_name' => '',
+                        'description' => svc[0],
+                        'state' => svc[1],
+                        'plugin_output' => svc[3]
+                    }
+                end
+                formatted_output(data,'service')
+            end
+        when 'hostgroup'
+            output = $nagui.hostgroup(key)
+            dbg("show hostgroup: #{output.inspect}")
+            if output != nil
+                data = [{
+                    'name' => output['name'],
+                    'members' => "#{output['num_hosts']} hosts #{output['num_services']} services",
+                    'num_hosts' => output['num_hosts'],
+                    'num_services' => output['num_services']
+                }]
+                output['members_with_state'].each do |host|
+                    data << {
+                        'members' => host[0],
+                        'state' => host[1]
+                    }
+                end
+                formatted_output(data,type,['name','members','state'])
+            end
+
+        when 'service'
+            service = args.shift
+            output = $nagui.service(key,service)
+            dbg("show service: #{output.inspect}")
+            record_formatted_output(output,type)
+       else
+            data = nil
         end
-        formatted_output(data, 'service')
     when 'check'
-        output = nagcheck(args)
-        record_formatted_output(output,'nagcheck')
+        record_formatted_output(nagcheck(args),'nagcheck')
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)

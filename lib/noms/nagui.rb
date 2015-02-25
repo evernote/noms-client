@@ -82,9 +82,32 @@ class NOMS::Nagui < NOMS::HttpClient
     query_string = make_lql(type,queries)
     results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
   end
-
+  def hostgroup(name)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hostgroups|Filter: name = #{name}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
+  def service(host,description)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET services|Filter: host_name = #{host}|Filter: description = #{description}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
+  def servicegroup(name)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{name}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
   def host(hostname)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name ~~ #{hostname}"))
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{hostname}"))
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
