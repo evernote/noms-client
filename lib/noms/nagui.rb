@@ -23,28 +23,110 @@ class NOMS
 end
 
 class NOMS::Nagui < NOMS::HttpClient
+
+  @@validtypes =['hosts','services','hostgroups','servicegroups','contacts','commands',
+    'downtimes','timeperiods','status','contactgroups']
+
   def dbg(msg)
       if @opt.has_key? 'debug' and @opt['debug'] > 2
           puts "DBG(#{self.class}): #{msg}"
       end
   end
-  def initialize(opt)
-      @opt = opt
-      self.dbg "Initialized with options: #{opt.inspect}"
-  end
+
+  # def initialize(opt)
+  #     @opt = opt
+  #     self.dbg "Initialized with options: #{opt.inspect}"
+  # end
 
   def config_key
     'nagui'
   end
 
-  def system(hostname)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name ~~ #{hostname}"))
+  def make_plural(str)
+    "#{str}s"
+  end
+
+  def default_query_key(type)
+    case type
+    when 'host'
+      'name'
+    when 'service'
+      'description'
+    when 'hostgroup'
+      'name'
+    end
+  end
+
+  def make_lql(type,queries)
+    if !queries.kind_of?(Array)
+      queries=[queries]
+    end
+    lql='GET ' 
+    lql << make_plural(type) 
+    queries.each do |q|
+      query = /(\w+)([!~>=<]+)(.*)/.match(q)
+      if query == nil
+        lql << "|Filter: #{default_query_key(type)} ~~ #{q}"
+      else
+        lql << "|Filter: #{query[1]} #{query[2]} #{query[3]}"
+      end
+    end
+    lql
+  end
+
+  def query(type,queries)
+    unless @@validtypes.include? make_plural(type)
+      puts "#{type} is not a valid type"
+      Process.exit(1)
+    end
+    query_string = make_lql(type,queries)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
+  end
+  def hostgroup(name)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hostgroups|Filter: name = #{name}"))
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
       nil
     end
   end
+  def service(host,description)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET services|Filter: host_name = #{host}|Filter: description = #{description}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
+  def servicegroup(name)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{name}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
+  def host(hostname)
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{hostname}"))
+    if results.kind_of?(Array) && results.length > 0
+      results[0]
+    else
+      nil
+    end
+  end
+
+  def nagcheck_host(host)
+    url = "/nagcheck/host/#{host}"
+    dbg("nagcheck url= #{url}")
+    nagcheck=do_request(:GET => url, :query => "report=true")
+  end
+
+  def nagcheck_service(host,service)
+    url = "/nagcheck/service/#{host}/#{service}"
+    dbg("nagcheck url= #{url}")
+    nagcheck=do_request(:GET => url, :query => "report=true")
+  end
+
   def check_host_online(host)
     @opt['host_up_command'] = 'check-host-alive' unless @opt.has_key?('host_up_command')
     nagcheck=do_request(:GET => "/nagcheck/command/#{host}/#{@opt['host_up_command']}")
@@ -54,4 +136,5 @@ class NOMS::Nagui < NOMS::HttpClient
       false
     end
   end
+
 end

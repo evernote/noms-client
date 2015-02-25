@@ -59,6 +59,12 @@
 #          cloud name                - Describe named cloud
 #          ncc                       - Describe NCC API endpoint
 #          cmdb                      - Describe system fields
+#       nagios subcommand
+#          show type name            - Show information for named type [hostgroup,host,service]
+#          detail host               - Show object detail for named host
+#          query type [condition [...]]   - Query for object by type [hostgroup,host,service]
+#          check <host> [<service>]  - Run service check for host (or host check) synchronously
+#
 #    Options:
 #       --names                      - Just print entity names, equivalent to
 #                                      --fields name --noheader --nofeedback --nolabel
@@ -180,6 +186,7 @@ require 'csv'
 require 'noms/client/version'
 require 'ncc/client'
 require 'noms/cmdb'
+require 'noms/nagui'
 
 $VERSION = NOMS::Client::VERSION
 $me = 'noms'
@@ -189,6 +196,8 @@ $opt = Optconfig.new('noms', {
                              'url' => 'http://noms/ncc_api/v2' },
                          'cmdb=s%' => {
                              'url' => 'http://cmdb/cmdb_api/v1' },
+                         'nagui=s%' => {
+                             'url' => 'http://nagios/nagui/nagios_live.cgi' },
                          'fields=s' => '',
                          'mock=s' => nil,
                          'format=s' => 'text',
@@ -201,6 +210,50 @@ $opt = Optconfig.new('noms', {
                          'default-environment' => 'production',
                          'default-cloud' => 'ec2',
                          'format-field=s%' => {
+                            'hostgroup' => {
+                                'fields' => [
+                                    'name','num_hosts', 'num_services'
+                                ],
+                                'length' => {
+                                    'name' => 20,
+                                    'members' => 36,
+                                    'num_hosts' => 5,
+                                    'num_services' => 5
+                                }
+                             },
+                             'host' => {
+                                'fields' => [
+                                    'name','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'name' => 36,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                             },
+                             'nagcheck' => {
+                                'fields' => [
+                                    'host_name','address','service_description','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'host_name' => 36,
+                                    'address' => 16,
+                                    'service_description' => 20,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                             },                            
+                             'service' => {
+                                'fields' => [
+                                    'host_name','description','state', 'plugin_output'
+                                ],
+                                'length' => {
+                                    'host_name' => 36,
+                                    'description' => 20,
+                                    'state' => 5,
+                                    'plugin_output' => 36
+                                }
+                             },
                              'svcinst' => {
                                  'fields' => [
                                      'name', 'type', 'note'
@@ -255,6 +308,7 @@ $opt = Optconfig.new('noms', {
 if $opt['mock']
     NCC::Client.mock! $opt['mock']
     NOMS::CMDB.mock! $opt['mock']
+    NOMS::Nagui.mock! $opt['mock']
 end
 
 case $opt['format']
@@ -278,6 +332,7 @@ $opt['ncc']['timeout'] ||= $opt['timeout']
 
 $cmdb = NOMS::CMDB.new($opt)
 $ncc = NCC::Client.new($opt)
+$nagui = NOMS::Nagui.new($opt)
 
 def parse_format(fields, type)
     dbg "Specified fields: #{fields.inspect}"
@@ -359,7 +414,7 @@ end
 
 def record_formatted_output(object, type='instance', fields=nil)
     fields = fmt_fields(type, fields)
-    all_fields = object.keys
+    all_fields = object.keys.sort
     fields = fields & all_fields
     fieldlist = parse_format($opt['fields'], type) || fields + (all_fields - fields)
     case $opt['format']
@@ -464,18 +519,110 @@ def cmdb_show(args)
     fqdn = args.shift
     system = $cmdb.query('system', 'fqdn=' + fqdn).first
     record = if ! args.empty?
-                 system.keys.inject({}) do |h, k|
+        system.keys.inject({}) do |h, k|
             if args.include? k
                 h.merge({k => system[k]})
             else
                 h
             end
         end
-             else
-                 system
-             end
+    else
+        system
+    end
     record
 end
+
+def nagcheck(args)
+    host = args.shift
+    if args.empty?
+        $nagui.nagcheck_host(host)
+    else
+        service=args.shift
+        $nagui.nagcheck_service(host,service)    
+    end
+end
+
+def nagios(args)
+    cmd = args.shift
+    case cmd
+    when 'query'
+        type = args.shift
+        if $opt['names']
+            if type == 'service'
+                $opt['fields'] = ['host_name','description']
+            else
+                $opt['fields'] = [$nagui.default_query_key(type)] if $opt['names']
+            end
+        end
+        output = $nagui.query(type,args)
+        if type == 'hostgroup'
+            output.each do |item|
+                item.delete('members')
+            end
+        end
+        formatted_output(output, type)
+    when 'detail'
+        host = args.shift
+        record_formatted_output($nagui.host(host), 'host')
+    when 'show'
+        type = args.shift
+        key = args.shift
+        $opt['feedback'] = false
+        case type 
+        when 'host'
+            output = $nagui.host(key)
+            dbg("show host: #{output.inspect}")
+            if output != nil
+                data = [{ 
+                    'host_name' => output['name'],
+                    'description' => '',
+                    'state' => output['state'],
+                    'plugin_output' => output['plugin_output'] 
+                }]
+                output['services_with_info'].each do |svc|
+                    data << {
+                        'host_name' => '',
+                        'description' => svc[0],
+                        'state' => svc[1],
+                        'plugin_output' => svc[3]
+                    }
+                end
+                formatted_output(data,'service')
+            end
+        when 'hostgroup'
+            output = $nagui.hostgroup(key)
+            dbg("show hostgroup: #{output.inspect}")
+            if output != nil
+                data = [{
+                    'name' => output['name'],
+                    'members' => "#{output['num_hosts']} hosts #{output['num_services']} services",
+                    'num_hosts' => output['num_hosts'],
+                    'num_services' => output['num_services']
+                }]
+                output['members_with_state'].each do |host|
+                    data << {
+                        'members' => host[0],
+                        'state' => host[1]
+                    }
+                end
+                formatted_output(data,type,['name','members','state'])
+            end
+
+        when 'service'
+            service = args.shift
+            output = $nagui.service(key,service)
+            dbg("show service: #{output.inspect}")
+            record_formatted_output(output,type)
+       else
+            data = nil
+        end
+    when 'check'
+        record_formatted_output(nagcheck(args),'nagcheck')
+    else
+        $stderr.puts "Unknown nagios command '#{cmd}'"
+        Process.exit(2)
+    end
+end 
 
 def cmdb(args)
     $opt['fields'] = ['fqdn'] if $opt['names']
@@ -686,10 +833,12 @@ def dispatch_command(argv)
         outs svcinst argv
     when 'environment', 'env'
         outs env argv
-    when 'instance'
+    when 'instance', 'inst'
         outs instance argv
     when 'waitfor'
         waitfor argv
+    when 'nagios', 'nag'
+        outs nagios argv
     when nil
         $stderr.puts "Usage:\n   noms --help\n   noms {desc|cmdb|instance|waitfor|...} [arg]"
         Process.exit(1)
