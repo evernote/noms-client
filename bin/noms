@@ -60,7 +60,8 @@
 #          ncc                       - Describe NCC API endpoint
 #          cmdb                      - Describe system fields
 #       nagios subcommand
-#          show name                 - Show informatoin for named host
+#          show name                 - Show information for named host
+#          detail name               - Show object detail for named host
 #          query 
 #              service name          - Query for services
 #              host name             - Query for hosts
@@ -548,10 +549,30 @@ def nagios(args)
         type = args.shift
         results = nagui_query(type,args)
         formatted_output(results, type)
+    when 'detail'
+        host = args.shift
+        record = $nagui.host(host)
+        record_formatted_output(record, 'host')
     when 'show'
         host = args.shift
-        record = $nagui.system(host)
-        record_formatted_output(record, 'host')
+        record = $nagui.host(host)
+        data = [{ 
+            'host_name' => record['name'],
+            'description' => '',
+            'state' => record['state'],
+            'plugin_output' => record['plugin_output'] 
+        }]
+        # print records.inspect
+        # Process.exit(1)
+        record['services_with_info'].each do |svc|
+            data << {
+                'host_name' => '',
+                'description' => svc[0],
+                'state' => svc[1],
+                'plugin_output' => svc[3]
+            }
+        end
+        formatted_output(data, 'service')
     when 'check'
         output = nagcheck args
     else
