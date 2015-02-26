@@ -167,6 +167,15 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
 
+  def comment(host,service=nil,user,comment)
+    if service == nil
+      cmd="COMMAND [#{Time.now.to_i}] ADD_HOST_COMMENT;#{host};1;#{user};#{comment}"
+    else
+      cmd="COMMAND [#{Time.now.to_i}] ADD_SVC_COMMENT;#{host};#{service};1;#{user};#{comment}"
+    end
+    process_command(cmd)
+  end
+
   def ack_host(host,user,comment)
     cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_HOST_PROBLEM;#{host};0;1;1;#{user};#{comment}"
     process_command(cmd)

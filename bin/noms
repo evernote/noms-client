@@ -635,6 +635,19 @@ def nagios(args)
     when 'alerts'
         formatted_output($nagui.query('service',['acknowledged=0','state!=0','state_type=1',"scheduled_downtime_depth=0","host_scheduled_downtime_depth=0"]),'service')
     when 'comment'
+        host=args.shift
+        if args.length == 1 
+            comment=args.shift
+            $nagui.comment(host,nil,get_username,comment)
+        else
+            service=args.shift
+            if(args.length > 1)
+                comment = args.join(' ')
+            else
+                comment = args.shift
+            end
+            $nagui.comment(host,service,get_username,comment)
+        end        
     when 'downtime','down'
         host = args.shift
         if args.length == 2
