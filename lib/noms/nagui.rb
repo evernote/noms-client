@@ -17,6 +17,7 @@
 
 require 'noms/httpclient'
 require 'uri'
+require 'cgi'
 
 class NOMS
 
@@ -113,6 +114,16 @@ class NOMS::Nagui < NOMS::HttpClient
     else
       nil
     end
+  end
+
+  def ack_host(host,user,comment)
+    cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_HOST_PROBLEM;#{host};0;1;1;#{user};#{comment}"
+    results = do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
+  end
+
+  def ack_service(host,service,user,comment)
+    cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_SVC_PROBLEM;#{host};#{service};0;1;1;#{user};#{comment}"
+    results = do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
   end
 
   def nagcheck_host(host)

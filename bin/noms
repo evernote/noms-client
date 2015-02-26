@@ -618,6 +618,25 @@ def nagios(args)
         end
     when 'check'
         record_formatted_output(nagcheck(args),'nagcheck')
+    when 'ack'
+        host=args.shift
+        if args.length == 1 
+            comment=args.shift
+            $nagui.ack_host(host,get_username,comment)
+        else
+            service=args.shift
+            if(args.length > 1)
+                comment = args.join(' ')
+            else
+                comment = args.shift
+            end
+            $nagui.ack_service(host,service,get_username,comment)
+        end
+    when 'alerts'
+        formatted_output($nagui.query('service',['acknowledged=0','state!=0','state_type=1',"scheduled_downtime_depth=0","host_scheduled_downtime_depth=0"]),'service')
+    when 'comment'
+    when 'downtime','down'
+    when 'undowntime','undown'
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)
