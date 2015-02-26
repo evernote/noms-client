@@ -636,6 +636,17 @@ def nagios(args)
         formatted_output($nagui.query('service',['acknowledged=0','state!=0','state_type=1',"scheduled_downtime_depth=0","host_scheduled_downtime_depth=0"]),'service')
     when 'comment'
     when 'downtime','down'
+        host = args.shift
+        if args.length == 2
+            length = args.shift
+            comment = args.shift
+            $nagui.downtime_host(host,length,get_username,comment)
+        else
+            service = args.shift
+            length = args.shift
+            comment = args.join(' ')
+            $nagui.downtime_service(host,service,length,get_username,comment)
+        end
     when 'undowntime','undown'
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"

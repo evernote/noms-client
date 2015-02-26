@@ -116,14 +116,55 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
 
+  def calc_time(str)
+    case str
+    when /(\d+)m/
+      #minutes
+      $1.to_i * 60
+    when /(\d+)h/
+      #hours
+      $1.to_i * 3600
+    when /(\d+)d/
+      #days
+      $1.to_i * 86400
+    else
+      str.to_i
+    end
+  end
+
+  def process_command(cmd)
+    do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
+  end
+
+  def downtime_host(host,length,user,comment)
+    starttime=Time.now.to_i
+    endtime = starttime + calc_time(length)
+    cmd="COMMAND [#{Time.now.to_i}] SCHEDULE_HOST_DOWNTIME;#{host};#{starttime};#{endtime};1;0;0;#{user};#{comment}"
+    process_command(cmd)
+  end
+  def downtime_service(host,service,length,user,comment)
+    starttime=Time.now.to_i
+    endtime = starttime + calc_time(length)
+    cmd="COMMAND [#{Time.now.to_i}] SCHEDULE_SVC_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"
+    process_command(cmd)
+  end
+  def undowntime(host,service=nil)
+    if service == nil
+      cmd="COMMAND [#{Time.now.to_i}] DEL_HOST_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"    
+    else
+      cmd="COMMAND [#{Time.now.to_i}] DEL_SVC_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"    
+    end
+    process_command(cmd)
+  end
+
   def ack_host(host,user,comment)
     cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_HOST_PROBLEM;#{host};0;1;1;#{user};#{comment}"
-    results = do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
+    process_command(cmd)
   end
 
   def ack_service(host,service,user,comment)
     cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_SVC_PROBLEM;#{host};#{service};0;1;1;#{user};#{comment}"
-    results = do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
+    process_command(cmd)
   end
 
   def nagcheck_host(host)
