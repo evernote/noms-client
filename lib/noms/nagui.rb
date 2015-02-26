@@ -16,7 +16,6 @@
 # */
 
 require 'noms/httpclient'
-require 'uri'
 require 'cgi'
 
 class NOMS
@@ -81,10 +80,11 @@ class NOMS::Nagui < NOMS::HttpClient
       Process.exit(1)
     end
     query_string = make_lql(type,queries)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(query_string)}")
   end
   def hostgroup(name)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hostgroups|Filter: name = #{name}"))
+    lql = "GET hostgroups|Filter: name = #{name}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -92,7 +92,8 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def service(host,description)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET services|Filter: host_name = #{host}|Filter: description = #{description}"))
+    lql = "GET services|Filter: host_name = #{host}|Filter: description = #{description}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -100,7 +101,8 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def servicegroup(name)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{name}"))
+    lql = "query=GET hosts|Filter: name = #{name}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -108,7 +110,8 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def host(hostname)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{hostname}"))
+    lql = "GET hosts|Filter: name = #{hostname}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -150,11 +153,18 @@ class NOMS::Nagui < NOMS::HttpClient
   end
   def undowntime(host,service=nil)
     if service == nil
-      cmd="COMMAND [#{Time.now.to_i}] DEL_HOST_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"    
+      host_record = host(host)
+      host_record['downtimes'].each do |id|
+        cmd = "COMMAND [#{Time.now.to_i}] DEL_HOST_DOWNTIME;#{id}"
+        process_command(cmd)
+      end    
     else
-      cmd="COMMAND [#{Time.now.to_i}] DEL_SVC_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"    
+      service_record = service(host,service)
+      service_record['downtimes'].each do |id|
+        cmd = "COMMAND [#{Time.now.to_i}] DEL_SVC_DOWNTIME;#{id}"  
+        process_command(cmd)
+      end  
     end
-    process_command(cmd)
   end
 
   def ack_host(host,user,comment)

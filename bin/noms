@@ -648,6 +648,9 @@ def nagios(args)
             $nagui.downtime_service(host,service,length,get_username,comment)
         end
     when 'undowntime','undown'
+        host = args.shift
+        service = args.shift if !args.empty? || nil
+        $nagui.undowntime(host,service)
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)
