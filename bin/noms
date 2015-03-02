@@ -63,7 +63,13 @@
 #          show type name            - Show information for named type [hostgroup,host,service]
 #          detail host               - Show object detail for named host
 #          query type [condition [...]]   - Query for object by type [hostgroup,host,service]
-#          check <host> [<service>]  - Run service check for host (or host check) synchronously
+#          check host [service]      - Run service check for host (or host check) synchronously
+#          ack host [service] <comment  - acknowledge a warning or critical host/service
+#          comment host [service] comment - add a comment to a host or service
+#          downtime host [service] duration comment - put a host or service into maintenance
+#          undowntime host [service]  - Remove downtime from a host or service
+#          alerts                     - List all unacknowledged problems that are in a hard non-OK
+#                                       state and are not in a scheduled downtime period
 #
 #    Options:
 #       --names                      - Just print entity names, equivalent to
@@ -618,6 +624,52 @@ def nagios(args)
         end
     when 'check'
         record_formatted_output(nagcheck(args),'nagcheck')
+    when 'ack'
+        host=args.shift
+        if args.length == 1 
+            comment=args.shift
+            $nagui.ack_host(host,get_username,comment)
+        else
+            service=args.shift
+            if(args.length > 1)
+                comment = args.join(' ')
+            else
+                comment = args.shift
+            end
+            $nagui.ack_service(host,service,get_username,comment)
+        end
+    when 'alerts'
+        formatted_output($nagui.query('service',['acknowledged=0','state!=0','state_type=1',"scheduled_downtime_depth=0","host_scheduled_downtime_depth=0"]),'service')
+    when 'comment'
+        host=args.shift
+        if args.length == 1 
+            comment=args.shift
+            $nagui.comment(host,nil,get_username,comment)
+        else
+            service=args.shift
+            if(args.length > 1)
+                comment = args.join(' ')
+            else
+                comment = args.shift
+            end
+            $nagui.comment(host,service,get_username,comment)
+        end        
+    when 'downtime','down'
+        host = args.shift
+        if args.length == 2
+            length = args.shift
+            comment = args.shift
+            $nagui.downtime_host(host,length,get_username,comment)
+        else
+            service = args.shift
+            length = args.shift
+            comment = args.join(' ')
+            $nagui.downtime_service(host,service,length,get_username,comment)
+        end
+    when 'undowntime','undown'
+        host = args.shift
+        service = args.shift if !args.empty? || nil
+        $nagui.undowntime(host,service)
     else
         $stderr.puts "Unknown nagios command '#{cmd}'"
         Process.exit(2)

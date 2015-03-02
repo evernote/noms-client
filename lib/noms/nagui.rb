@@ -16,7 +16,7 @@
 # */
 
 require 'noms/httpclient'
-require 'uri'
+require 'cgi'
 
 class NOMS
 
@@ -80,10 +80,11 @@ class NOMS::Nagui < NOMS::HttpClient
       Process.exit(1)
     end
     query_string = make_lql(type,queries)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=#{query_string}"))
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(query_string)}")
   end
   def hostgroup(name)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hostgroups|Filter: name = #{name}"))
+    lql = "GET hostgroups|Filter: name = #{name}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -91,7 +92,8 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def service(host,description)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET services|Filter: host_name = #{host}|Filter: description = #{description}"))
+    lql = "GET services|Filter: host_name = #{host}|Filter: description = #{description}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -99,7 +101,8 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def servicegroup(name)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{name}"))
+    lql = "query=GET hosts|Filter: name = #{name}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
@@ -107,12 +110,80 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
   def host(hostname)
-    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => URI.encode("query=GET hosts|Filter: name = #{hostname}"))
+    lql = "GET hosts|Filter: name = #{hostname}"
+    results = do_request(:GET => '/nagui/nagios_live.cgi', :query => "query=#{CGI.escape(lql)}")
     if results.kind_of?(Array) && results.length > 0
       results[0]
     else
       nil
     end
+  end
+
+  def calc_time(str)
+    case str
+    when /(\d+)m/
+      #minutes
+      $1.to_i * 60
+    when /(\d+)h/
+      #hours
+      $1.to_i * 3600
+    when /(\d+)d/
+      #days
+      $1.to_i * 86400
+    else
+      str.to_i
+    end
+  end
+
+  def process_command(cmd)
+    do_request(:POST => '/nagui/nagios_live.cgi', :body => "query=#{CGI.escape(cmd)}", :content_type => 'application/x-www-form-urlencoded')
+  end
+
+  def downtime_host(host,length,user,comment)
+    starttime=Time.now.to_i
+    endtime = starttime + calc_time(length)
+    cmd="COMMAND [#{Time.now.to_i}] SCHEDULE_HOST_DOWNTIME;#{host};#{starttime};#{endtime};1;0;0;#{user};#{comment}"
+    process_command(cmd)
+  end
+  def downtime_service(host,service,length,user,comment)
+    starttime=Time.now.to_i
+    endtime = starttime + calc_time(length)
+    cmd="COMMAND [#{Time.now.to_i}] SCHEDULE_SVC_DOWNTIME;#{host};#{service};#{starttime};#{endtime};1;0;0;#{user};#{comment}"
+    process_command(cmd)
+  end
+  def undowntime(host,service=nil)
+    if service == nil
+      host_record = host(host)
+      host_record['downtimes'].each do |id|
+        cmd = "COMMAND [#{Time.now.to_i}] DEL_HOST_DOWNTIME;#{id}"
+        process_command(cmd)
+      end    
+    else
+      service_record = service(host,service)
+      service_record['downtimes'].each do |id|
+        cmd = "COMMAND [#{Time.now.to_i}] DEL_SVC_DOWNTIME;#{id}"  
+        process_command(cmd)
+      end  
+    end
+  end
+
+  def comment(host,service=nil,user,comment)
+    if service == nil
+      cmd="COMMAND [#{Time.now.to_i}] ADD_HOST_COMMENT;#{host};1;#{user};#{comment}"
+    else
+      cmd="COMMAND [#{Time.now.to_i}] ADD_SVC_COMMENT;#{host};#{service};1;#{user};#{comment}"
+    end
+    process_command(cmd)
+  end
+
+  def ack_host(host,user,comment)
+    cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_HOST_PROBLEM;#{host};0;1;1;#{user};#{comment}"
+    process_command(cmd)
+  end
+
+  def ack_service(host,service,user,comment)
+    cmd="COMMAND [#{Time.now.to_i}] ACKNOWLEDGE_SVC_PROBLEM;#{host};#{service};0;1;1;#{user};#{comment}"
+    process_command(cmd)
   end
 
   def nagcheck_host(host)
