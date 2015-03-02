@@ -63,7 +63,13 @@
 #          show type name            - Show information for named type [hostgroup,host,service]
 #          detail host               - Show object detail for named host
 #          query type [condition [...]]   - Query for object by type [hostgroup,host,service]
-#          check <host> [<service>]  - Run service check for host (or host check) synchronously
+#          check host [service]      - Run service check for host (or host check) synchronously
+#          ack host [service] <comment  - acknowledge a warning or critical host/service
+#          comment host [service] comment - add a comment to a host or service
+#          downtime host [service] duration comment - put a host or service into maintenance
+#          undowntime host [service]  - Remove downtime from a host or service
+#          alerts                     - List all unacknowledged problems that are in a hard non-OK
+#                                       state and are not in a scheduled downtime period
 #
 #    Options:
 #       --names                      - Just print entity names, equivalent to
