@@ -167,7 +167,7 @@ class NOMS::Nagui < NOMS::HttpClient
     end
   end
 
-  def comment(host,service=nil,user,comment)
+  def comment(host,service,user,comment)
     if service == nil
       cmd="COMMAND [#{Time.now.to_i}] ADD_HOST_COMMENT;#{host};1;#{user};#{comment}"
     else
