@@ -62,7 +62,7 @@ Implementation
 
 If the type is ``text/plain``, it's simply displayed.
 
-If the type is a recognized data serialization format:
+If the type is a recognized data serialization format (JSON or YAML):
 
 * application/json
 * application/x-json
@@ -70,7 +70,6 @@ If the type is a recognized data serialization format:
 * application/yaml
 * application/x-yaml
 * text/yaml
-* text/csv (a list of objects)
 
 If the fetched content is a single object and the object has the top-level key '$doctype', it may be interpreted according to "Dynamic Doctypes", below. Otherwise, it is assumed to be either a single object to display or a list of such. Otherwise **noms** will render the object or array using its default format (usually YAML).
 
