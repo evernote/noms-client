@@ -127,7 +127,8 @@ Example **noms** conversation::
     "$script": ["lib/optconfig.js", "noms/cmdb.js", "noms/cli.js"],
     "$body": null
   }
-  noms << set 'document.argv' to ["--format=csv", "system", "fqdn~^m00"]
+  noms << set 'document.argv' to ["https://cmdb.noms-example.com/cmdb.json", "--format=csv", "system", "fqdn~^m00"]
+  noms << set 'document.exitcode' to 0
   noms >> GET https://cmdb.noms-example.com/lib/optconfig.js
   noms << evaluate javascript option-parsing library optconfig.js
   noms >> GET https://cmdb.noms-example.com/noms/cmdb.js
