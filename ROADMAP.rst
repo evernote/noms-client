@@ -35,7 +35,7 @@ Causes **noms** to forget its session state for the given application URL.
 
 * ``noms *bookmark*[/arg] ...``
 
-The **noms** itself has a configuration file (``~/.noms``, ``/usr/local/etc/noms.conf``, ``/etc/noms.conf`` in that order) which defines bookmarks to different URLs. For example, given the following in ``/etc/noms.conf``::
+The **noms** command itself has a configuration file (``~/.noms``, ``/usr/local/etc/noms.conf``, ``/etc/noms.conf`` in that order) which defines bookmarks to different URLs. For example, given the following in ``/etc/noms.conf``::
 
   { 
     "cmdb": "https://cmdb.noms-example.com/cmdb.json",
@@ -46,10 +46,16 @@ The **noms** itself has a configuration file (``~/.noms``, ``/usr/local/etc/noms
 
 When invoked in the following ways, it's the equivalent to the command on the right:
 
-Command given
-noms cmdb query fqdn~^m00         noms https://cmdb.noms-example.com/cmdb.json query fqdn~^m00 # argv[0] set to 'cmdb'
-noms cmdb/env list                noms https://cmdb.noms-example.com/cmdb.json list            # argv[0] set to 'cmdb/env'
-noms nag alerts                   noms https://cmdb.noms-example.com/nagui.json alerts         # argv[0] set to 'nag'
+================================= ==================================================================
+Command given                     Equivalent command
+================================= ==================================================================
+``noms cmdb query fqdn~^m00``     ``noms https://cmdb.noms-example.com/cmdb.json query fqdn~^m00``
+                                  (``document.argv[0]`` set to ``cmdb``)
+``noms cmdb/env list``            ``noms https://cmdb.noms-example.com/cmdb.json list``
+                                  (``document.argv[0]`` set to ``cmdb/env``)
+``noms nag alerts``               ``noms https://cmdb.noms-example.com/nagui.json alerts``
+                                  (``document.argv[0]`` set to ``nag``)
+================================= ==================================================================
 
 Implementation
 --------------
@@ -75,6 +81,9 @@ The principle dynamic doctype is the ``noms-v2``, which is an object with the fo
 
 ``$doctype``
   Must be ``noms-v2``. In future, backwards-incompatible extensions may be implemented in ``noms-v3`` or higher doctypes.
+
+``$script``
+  An ordered array of scripts to fetch and evaluate.
 
 ``$format-fields``
   An array of objects, each having (at least) a ``name`` and ``width`` attribute. May also include a ``label`` attribute
@@ -199,3 +208,8 @@ Invoked scripts have access to the following global objects:
 * **document** - The document object is the current document being rendered by **noms**. In addition to the attributes of the document itself, it has the following:
   * **argv** - The arguments being invoked. The first element of this array is the first argument passed to **noms** itself (not the script it ultimately fetches, but how it's invoked, similar to ``$1``
   * **exitcode** - The numeric exit code with which **noms** will exit. Initially 0.
+
+Web 1.0 vs Web 2.0
+------------------
+
+Like the "real web", **noms** commands can choose to do some calculation on the server and some on the client: **noms** doesn't care. You can use no ``$script`` tag at all and just calculate the entire document to be rendered in the client (though this currently odoesn't allow for argument interpretation, in the future the arguments may be passed in request headers or **noms** may allow a way for them to show up in a query string or POST request--but **noms** is not really a command-line http client either). This is up to the application designer.
