@@ -42,10 +42,11 @@ describe NOMS::CMDB::RestMock do
             end
         end
 
-        context :PUT do
+        context :POST do
 
             it 'creates a new entry' do
-                @cmdb.do_request :PUT => '/environments/production', :body => {
+                @cmdb.do_request :POST => '/environments', :body => {
+                    'id' => 'production',
                     'name' => 'production', 'environment_name' => 'production' }
                 expect(File.exist? $datafile).to be true
             end

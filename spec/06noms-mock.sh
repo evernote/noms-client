@@ -33,3 +33,22 @@ teardown() {
 EOF
     noms --config=test/etc/noms.conf --mock=test/data.json cmdb show test1.example.com
 }
+
+@test "noms-mock cmdb add" {
+    cat >test/data.json <<EOF
+{ "cmdb": {
+  "/cmdb_api/v1/system": [
+     { "id": "test1.example.com",
+       "fqdn": "test1.example.com",
+       "status": "idle",
+       "environment": "testing",
+       "data_center_code": "DC1",
+       "ip_address": "10.0.0.1" }
+    ]
+  }
+}
+EOF
+    noms --config=test/etc/noms.conf --mock=test/data.json cmdb add test2.example.com inventory_component_type=system
+    type=$(noms --config=test/etc/noms.conf --mock=test/data.json --nolabel cmdb show test2.example.com inventory_component_type)
+    [ "$type" = 'system' ]
+}

@@ -61,6 +61,20 @@ class NOMS::CMDB < NOMS::HttpClient
       do_request(:GET => "pcmsystemname/#{serial}")
   end
 
+  def create(type, obj, key=nil)
+      keyfield = key_field_of(type)
+      objkey = obj[keyfield]
+
+      if key.nil? and objkey.nil?
+          raise NOMS::Error, "Must specify a key value or imply it in the object's #{key_field_of(type)} value"
+      end
+      if (obj.has_key?(keyfield) and (! key.nil?) and obj[keyfield] != key)
+          raise NOMS::Error, "You specified different keys for a new #{type} object: #{objkey} in the object vs. #{key}"
+      end
+      newobj = { keyfield => (objkey || key) }.merge obj
+      do_request(:POST => type, :body => newobj)
+  end
+
   def update(type, obj, key=nil)
       key ||= obj[key_field_of(type)]
       do_request(:PUT => "#{type}/#{key}", :body => obj)
@@ -119,12 +133,25 @@ class NOMS::CMDB::Mock < NOMS::HttpClient::RestMock
 
     @@machine_id = 0
 
+    def allow_put_to_create
+        false
+    end
+
+    def id_field(path)
+        case path
+        when %r{system$}
+            'fqdn'
+        else
+            'id'
+        end
+    end
+
     def handle_mock(method, uri, opt)
         if m = Regexp.new('/pcmsystemname/([^/]+)').match(uri.path)
             serial = m[1]
             @@machine_id += 1
             name = "m-%03d.mock" % @@machine_id
-            do_request :PUT => "system/#{name}",
+            do_request :POST => "system",
                        :body => {
                            'serial' => serial,
                            'fqdn' => name

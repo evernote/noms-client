@@ -3,6 +3,8 @@
 require 'noms/cmdb'
 require 'spec_helper'
 
+# The NOMS::CMDB::RestMock has
+# a non-upserting PUT
 describe NOMS::CMDB::RestMock do
 
     before(:all) do
@@ -62,39 +64,28 @@ describe NOMS::CMDB::RestMock do
             it 'synthesizes an id' do
                 result = @cmdb.do_request :POST => '/environments', :body => { 'name' => 'production' }
                 expect(result).to have_key 'id'
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['id'] = result['id'] }
+                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['id'] == result['id'] }
+            end
+
+            it 'understands alternate id fields' do
+                result = @cmdb.do_request :POST => '/system', :body => {
+                    'fqdn' => 'test0',
+                    'environment_name' => 'production' }
+                expect(result).to have_key 'fqdn'
+                expect(@cmdb.all_data[$server][$cmdbapi + '/system']).to include { |o| o['fqdn'] == 'test0' }
             end
 
         end
 
         context :PUT do
 
-            it 'creates a new entry' do
-                @cmdb.do_request :PUT => '/environments/1', :body => {
-                    'name' => 'production', 'environment_name' => 'production' }
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['name'] == 'production' }
-            end
-
-            it 'creates several new entries' do
-                @cmdb.do_request :PUT => '/environments/1', :body => {
-                    'name' => 'production', 'environment_name' => 'production' }
-                10.times do |i|
-                    @cmdb.do_request :PUT => "/environments/#{100 + i}", :body => {
-                        'name' => "environment-#{i}", 'environment_name' => 'production' }
-                end
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to have(11).items
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to include { |o| o['name'] == 'production' }
-            end
-
-            it 'infers the id' do
-                result = @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
-                expect(result).to have_key 'id'
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments'][0]).to have_key 'id'
-                expect(@cmdb.all_data[$server][$cmdbapi + '/environments'][0]['id']).to eq '1'
+            it 'fails to create a new entry' do
+                expect { @cmdb.do_request(:PUT => '/environments/1', :body => {
+                                          'name' => 'production', 'environment_name' => 'production' }) }.to raise_error(NOMS::Error)
             end
 
             it 'replaces an existing object' do
-                @cmdb.do_request :PUT => '/environments/1', :body => {
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1',
                     'name' => 'production', 'environment_name' => 'production' }
                 @cmdb.do_request :PUT => '/environments/1', :body => {
                     'name' => 'testing', 'note' => 'testing environment' }
@@ -110,7 +101,7 @@ describe NOMS::CMDB::RestMock do
                 def @cmdb.allow_partial_updates
                     true
                 end
-                @cmdb.do_request :PUT => '/environments/1', :body => {
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1',
                     'name' => 'production', 'environment_name' => 'production' }
                 @cmdb.do_request :PUT => '/environments/1', :body => {
                     'name' => 'testing', 'note' => 'testing environment' }
@@ -134,6 +125,16 @@ describe NOMS::CMDB::RestMock do
                 expect(result).to include 'name' => 'production'
             end
 
+            it 'finds an existing entry by alternate id' do
+                @cmdb.do_request :POST => '/system', :body => {
+                    'fqdn' => 'test0', 'environment_name' => 'production'
+                }
+                result = @cmdb.do_request :GET => '/system/test0'
+                expect(result).to be_a Hash
+                expect(result).to include 'fqdn' => 'test0'
+                expect(result).to include 'environment_name' => 'production'
+            end
+
             it 'retrieves all entries' do
                 @cmdb.do_request :POST => '/environments', :body => {
                     'name' => 'production', 'environment_name' => 'production'
@@ -151,7 +152,7 @@ describe NOMS::CMDB::RestMock do
 
             it 'raises an exception for missing entries' do
                 expect { @cmdb.do_request :GET => '/environments/1' }.to raise_error
-                @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
                 expect { @cmdb.do_request :GET => '/chorizo' }.to raise_error
                 expect { @cmdb.do_request :GET => '/environments/2' }.to raise_error
             end
@@ -161,16 +162,16 @@ describe NOMS::CMDB::RestMock do
         context :DELETE do
 
             it 'deletes an existing entry' do
-                @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
                 result = @cmdb.do_request :DELETE => '/environments/1'
                 expect(result).to be true
                 expect(@cmdb.all_data[$server][$cmdbapi + '/environments']).to have(0).items
             end
 
             it 'deletes an existing entry among many' do
-                @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
                 10.times do |i|
-                    @cmdb.do_request :PUT => "/environments/#{100 + i}", :body => {
+                    @cmdb.do_request :POST => "/environments", :body => { 'id' => "#{100 + i}",
                         'name' => "environment-#{i}", 'environment_name' => 'production' }
                 end
                 @cmdb.do_request :DELETE => '/environments/103'
@@ -180,14 +181,14 @@ describe NOMS::CMDB::RestMock do
             end
 
             it 'deletes a whole collection' do
-                @cmdb.do_request :PUT => '/environments/1', :body => {'name' => 'production' }
+                @cmdb.do_request :POST => '/environments', :body => {'id' => '1', 'name' => 'production' }
                 @cmdb.do_request :DELETE => '/environments'
                 expect(@cmdb.all_data[$server]).not_to have_key '/environments'
             end
 
             it 'raises an exception for nonexistent entries' do
                 expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error
-                @cmdb.do_request :PUT => '/environments/1', :body => { 'name' => 'production' }
+                @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
                 expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error
                 expect { @cmdb.do_request :DELETE => '/chorizo' }.to raise_error
             end

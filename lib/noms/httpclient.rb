@@ -132,6 +132,10 @@ class NOMS::HttpClient
         false
     end
 
+    def allow_put_to_create
+        true
+    end
+
     def default_content_type
         'application/json'
     end
@@ -253,9 +257,14 @@ class NOMS::HttpClient::RestMock < NOMS::HttpClient
             object_index =
                 @data[url.host][collection_path].index { |el| el[id_field(collection_path)] == id }
             if object_index.nil?
-                object = opt[:body].merge({ id_field(collection_path) => id })
-                dbg "creating in collection #{collection_path}: #{object.inspect}"
-                @data[url.host][collection_path] << opt[:body].merge({ id_field(collection_path) => id })
+                if allow_put_to_create
+                    object = opt[:body].merge({ id_field(collection_path) => id })
+                    dbg "creating in collection #{collection_path}: #{object.inspect}"
+                    @data[url.host][collection_path] << opt[:body].merge({ id_field(collection_path) => id })
+                else
+                    dbg "not creating in collection #{collection_path}: #{id} (allow_put_to_create is false)"
+                    raise NOMS::Error, "There is no resource at this location"
+                end
             else
                 if allow_partial_updates
                     object = @data[url.host][collection_path][object_index].merge(opt[:body])

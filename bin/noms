@@ -248,7 +248,7 @@ $opt = Optconfig.new('noms', {
                                     'state' => 5,
                                     'plugin_output' => 36
                                 }
-                             },                            
+                             },
                              'service' => {
                                 'fields' => [
                                     'host_name','description','state', 'plugin_output'
@@ -523,7 +523,7 @@ end
 
 def cmdb_show(args)
     fqdn = args.shift
-    system = $cmdb.query('system', 'fqdn=' + fqdn).first
+    system = $cmdb.system(fqdn)
     record = if ! args.empty?
         system.keys.inject({}) do |h, k|
             if args.include? k
@@ -691,6 +691,10 @@ def cmdb(args)
     when 'set'
         fqdn = args.shift
         updated = $cmdb.update('system', opt, fqdn)
+        ''
+    when 'add'
+        fqdn = args.shift
+        created = $cmdb.create('system', opt, fqdn)
         ''
     else
         $stderr.puts "Unknown cmdb command '#{cmd}'"
