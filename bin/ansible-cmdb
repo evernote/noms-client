@@ -8,11 +8,11 @@ $time = { }
 $LOAD_PATH.unshift '/usr/local/lib'
 $time[:start] = Time.now
 require 'json'
-require 'optconfig'
+require 'noms/optconfig'
 require 'noms/cmdb'
 $time[:loaded] = Time.now
 
-opt = Optconfig.new('noms', { 'host=s' => nil, 'list!' => false, 'stats+' => 0 })
+opt = NOMS::Optconfig.new('noms', { 'host=s' => nil, 'list!' => false, 'stats+' => 0 })
 cmdb = NOMS::CMDB.new(opt)
 
 $time[:initialized] = Time.now

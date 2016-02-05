@@ -151,10 +151,10 @@ describe NOMS::CMDB::RestMock do
             end
 
             it 'raises an exception for missing entries' do
-                expect { @cmdb.do_request :GET => '/environments/1' }.to raise_error
+                expect { @cmdb.do_request :GET => '/environments/1' }.to raise_error(NOMS::Error)
                 @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
-                expect { @cmdb.do_request :GET => '/chorizo' }.to raise_error
-                expect { @cmdb.do_request :GET => '/environments/2' }.to raise_error
+                expect { @cmdb.do_request :GET => '/chorizo' }.to raise_error(NOMS::Error)
+                expect { @cmdb.do_request :GET => '/environments/2' }.to raise_error(NOMS::Error)
             end
 
         end
@@ -187,10 +187,10 @@ describe NOMS::CMDB::RestMock do
             end
 
             it 'raises an exception for nonexistent entries' do
-                expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error
+                expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error(NOMS::Error)
                 @cmdb.do_request :POST => '/environments', :body => { 'id' => '1', 'name' => 'production' }
-                expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error
-                expect { @cmdb.do_request :DELETE => '/chorizo' }.to raise_error
+                expect { @cmdb.do_request :DELETE => '/environments/2' }.to raise_error(NOMS::Error)
+                expect { @cmdb.do_request :DELETE => '/chorizo' }.to raise_error(NOMS::Error)
             end
 
         end

@@ -22,5 +22,5 @@ Gem::Specification.new do |spec|
     spec.add_development_dependency "rspec"
     spec.add_development_dependency "rspec-collection_matchers"
 
-    spec.add_runtime_dependency "optconfig"
+    spec.add_runtime_dependency "noms-optconfig"
 end

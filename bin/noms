@@ -186,7 +186,7 @@
 #
 
 require 'rubygems'
-require 'optconfig'
+require 'noms/optconfig'
 require 'etc'
 require 'csv'
 require 'noms/client/version'
@@ -197,7 +197,7 @@ require 'noms/nagui'
 $VERSION = NOMS::Client::VERSION
 $me = 'noms'
 
-$opt = Optconfig.new('noms', {
+$opt = NOMS::Optconfig.new('noms', {
                          'ncc=s%' => {
                              'url' => 'http://noms/ncc_api/v2' },
                          'cmdb=s%' => {
