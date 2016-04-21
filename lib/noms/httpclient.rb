@@ -463,7 +463,7 @@ class NOMS::HttpClient::Real < NOMS::HttpClient
                 "(#{response.code}): " + error_body(response.body)
         end
 
-        if response.body
+        if response.body and response.body.size > 0
             type = ignore_content_type ? default_content_type :
                 (response.content_type || default_content_type)
             self.dbg "Response body is type #{type}"
